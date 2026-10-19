@@ -42,6 +42,8 @@ A **for-fun learning project**. The owner is interested in GIS and transit.
 - Testing: **some, not a lot.** See [Testing](#testing).
 - When a design question comes up, propose options with a recommendation; don't silently
   pick. Record decisions in this file with the date.
+- **Git:** commit directly on `main` as you go, in small logical commits. **Never push**;
+  the owner pushes.
 
 ## Decisions (2026-10-19)
 
