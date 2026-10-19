@@ -1,7 +1,7 @@
 # Build site/ and deploy it to GitHub Pages on every push to main.
-# CI never runs the data pipeline: site/public/data/ (PMTiles, stops.json, catchments.json)
-# is built locally
-# and committed. Without it, the deployed map has no data (it is gitignored for now).
+# CI never runs the data pipeline: site/public/data/ (PMTiles, stops.json,
+# catchments.json) is built locally and must be committed. It is gitignored for now, so
+# until it is, the deployed site has no data.
 name: Deploy site
 
 on:

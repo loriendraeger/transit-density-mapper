@@ -2,9 +2,9 @@
 
 - <file>.pmtiles   tile layers from the `export` schema views (GeoJSONSeq -> tippecanoe)
 - stops.json       every merged stop: frequencies, banded catchment totals, metadata
-- catchments/<id>.json   per stop: the spiderweb (walk-network edge ids + walk times)
-                   and the blob (one polygon per minute band), loaded when a stop is
-                   selected
+- catchments.json every stop's spiderweb (walk-network edge ids + walk times) and blob
+                   (one polygon per minute band), keyed by stop id; the site loads it
+                   when a stop is first selected
 - basemap.pmtiles  Protomaps extract of the study area
 
 Shapes must match site/src/lib/contract.ts.
@@ -13,7 +13,6 @@ Shapes must match site/src/lib/contract.ts.
 import datetime
 import json
 import math
-import shutil
 import subprocess
 from multiprocessing import Pool
 from pathlib import Path
@@ -29,7 +28,7 @@ from . import config
 
 EXPORT_DIR = config.BUILD / "export"
 SITE_DATA = config.SITE_DATA
-CATCH_DIR = SITE_DATA / "catchments"
+CATCH_FILE = SITE_DATA / "catchments.json"
 # Coordinates in catchment files: integer units of 1e-5 degrees (~1 m), delta-encoded.
 COORD_SCALE = 100_000
 PERIODS = ["peak", "offpeak", "saturday", "sunday"]
@@ -249,7 +248,7 @@ def _encode(geom) -> list[list[list[int]]]:
     ]
 
 
-def _catchment(cid: str) -> int:
+def _catchment(cid: str) -> tuple[str, dict]:
     p = config.pipeline()
     max_s = p["walk"]["max_walk_min"] * 60
     band_s = p["walk"]["band_min"] * 60
@@ -311,34 +310,30 @@ def _catchment(cid: str) -> int:
             "FROM unnest(%s::bytea[]) WITH ORDINALITY AS u(g, i) ORDER BY i",
             (crs, [shapely.to_wkb(g) for g in bands]),
         ).fetchall()
-    out = {
-        "id": cid,
+    return cid, {
         "edges": {"id_deltas": id_deltas, "t": times},
         "bands": [_encode(wkb.loads(bytes(r[0]))) for r in projected],
     }
-    path = CATCH_DIR / f"{cid}.json"
-    path.write_text(json.dumps(out, separators=(",", ":")))
-    return path.stat().st_size
 
 
-def catchments(workers: int = 12, only: list[str] | None = None) -> None:
+def catchments(workers: int = 12) -> None:
+    """All stops' catchments in one file, keyed by stop id (the site loads it once)."""
     with psycopg.connect("") as conn:
-        ids = only or [
+        ids = [
             r[0]
             for r in conn.execute(
                 "SELECT DISTINCT cluster_id FROM catch.reach ORDER BY 1"
             ).fetchall()
         ]
-    if only is None and CATCH_DIR.exists():
-        shutil.rmtree(CATCH_DIR)
-    CATCH_DIR.mkdir(parents=True, exist_ok=True)
-    total = 0
+    out: dict[str, dict] = {}
     with Pool(workers) as pool:
-        for i, size in enumerate(pool.imap_unordered(_catchment, ids), 1):
-            total += size
+        for i, (cid, c) in enumerate(pool.imap_unordered(_catchment, ids), 1):
+            out[cid] = c
             if i % 100 == 0:
                 print(f"  {i}/{len(ids)} catchments", flush=True)
-    print(f"wrote {len(ids)} catchment files, {total / 1e6:.1f} MB")
+    CATCH_FILE.parent.mkdir(parents=True, exist_ok=True)
+    CATCH_FILE.write_text(json.dumps(dict(sorted(out.items())), separators=(",", ":")))
+    print(f"wrote {CATCH_FILE.name}: {len(ids)} stops, {CATCH_FILE.stat().st_size / 1e6:.1f} MB")
 
 
 # --- basemap -----------------------------------------------------------------------

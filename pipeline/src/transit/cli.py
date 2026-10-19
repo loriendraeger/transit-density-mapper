@@ -56,15 +56,8 @@ def reach():
 
 
 @app.command()
-def export(
-    only: Annotated[
-        list[str] | None, typer.Option(help="just these stops' catchment files")
-    ] = None,
-):
-    """Write site/public/data/: tiles, stops.json, catchments/<stop>.json."""
-    if only:
-        export_mod.catchments(only=only)
-        return
+def export():
+    """Write site/public/data/: tiles, stops.json, catchments.json."""
     export_mod.tiles()
     export_mod.stops_json()
     export_mod.catchments()

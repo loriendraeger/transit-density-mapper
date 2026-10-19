@@ -7,9 +7,10 @@ The data produced by this project is made available under the Open Data Commons
 Open Database License (ODbL) v1.0: https://opendatacommons.org/licenses/odbl/1-0/
 
 This covers:
-  - site/public/data/ (shore.pmtiles, basemap.pmtiles, stats.json)
-  - the hand-curated tables in config/ (*.csv: ownership rules, access rules,
-    access overrides, categories, exclusions, display text)
+  - site/public/data/ (stops.json, catchments.json, network.pmtiles,
+    generators.pmtiles, basemap.pmtiles)
+  - the hand-curated tables in config/ (*.csv: road classes and crossing waits,
+    destination categories and weights, stop merge overrides)
 
 The outputs are a derivative database of OpenStreetMap, so if you publicly use or
 share an adapted version of them, it must also be offered under the ODbL.
@@ -23,27 +24,27 @@ The ODbL above covers only this project's rights in the database. The upstream
 datasets keep their own terms, which still apply to anything derived from them.
 Credit them as follows:
 
+  - Data provided under license granted by City of Madison, WI, Metro Transit.
+    (Metro Transit Data Developer License Agreement and Terms of Use: use is
+    limited to assisting mass transit riders or promoting public transportation;
+    the data is provided as is.)
   - (c) OpenStreetMap contributors, ODbL 1.0
     https://www.openstreetmap.org/copyright
   - Protomaps basemap, (c) OpenStreetMap contributors, ODbL 1.0
+  - U.S. Census Bureau: 2020 Census (TIGER/Line blocks with population and
+    housing counts) and LEHD Origin-Destination Employment Statistics (LODES 8).
+    Public domain.
+  - City of Madison Assessor (tax parcels, dwelling units), under the City of
+    Madison Data Policy: https://www.cityofmadison.com/policy/data
   - Wisconsin Statewide Parcel Map Initiative (V12), Wisconsin Department of
     Administration / State Cartographer's Office. Provided free of charge with no
     formal license. Users are asked to complete the parcel feedback form:
     https://www.sco.wisc.edu/parcels/feedback/
-  - Dane County Land Information Office (hydrography, municipal boundaries). Its
-    data is provided under the county's own terms and disclaimers; it is
-    intended for cartographic use and general spatial analysis, not
-    site-specific analysis.
-  - Wisconsin DNR, 24K Hydrography. Subject to the DNR's disclaimers:
-    https://dnr.wisconsin.gov/legal
-  - Wisconsin Department of Administration, Demographic Services Center
-    (population estimates).
 
-Raw owner names from the parcel data are not included in any published output.
+No parcel attributes are published, only population estimates aggregated from them.
 
-Not legal advice. Ownership and access data are derived from public records and
-OpenStreetMap, and may be wrong or out of date. Parcel data is not a legal record
-of ownership.
+Estimates (population placement, walk times, scores) are modeled from public data and
+may be wrong or out of date. This project is not affiliated with Metro Transit.
 
 Source code is licensed separately under GPL-3.0-or-later (see LICENSE), and the
 documentation under CC BY-SA 4.0 (see LICENSE-DOCS).

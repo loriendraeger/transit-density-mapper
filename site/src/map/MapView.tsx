@@ -467,13 +467,35 @@ export default function MapView(): JSX.Element {
       }),
     )
 
-    // Fly to a stop on request (table "show on map", or a shared link).
+    // Fly to a stop on request (table "show on map", or a shared link): head there
+    // right away, then frame its walkshed at the current limit once that's loaded.
     createEffect(
       on(flyRequest, (req) => {
         const stop = req ? data()?.stops.find((s) => s.id === req.id) : undefined
-        if (stop) {
-          m.flyTo({ center: [stop.lon, stop.lat], zoom: Math.max(m.getZoom(), 14.5) })
+        if (!stop) {
+          return
         }
+        m.flyTo({ center: [stop.lon, stop.lat], zoom: Math.max(m.getZoom(), 14.5) })
+        loadCatchment(stop.id)
+          .then((c) => {
+            const band = c.bands.at(walkMin() - 1)
+            const coords = band?.coordinates.flat(2) ?? []
+            if (!coords.length || selectedId() !== stop.id) {
+              return
+            }
+            const xs = coords.map((p) => p[0])
+            const ys = coords.map((p) => p[1])
+            m.fitBounds(
+              [
+                [Math.min(...xs), Math.min(...ys)],
+                [Math.max(...xs), Math.max(...ys)],
+              ],
+              { padding: 40, maxZoom: 16 },
+            )
+          })
+          .catch((e: unknown) => {
+            console.error(e)
+          })
       }),
     )
   }
