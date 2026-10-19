@@ -1,0 +1,27 @@
+highway,walkable,barrier,wait_signal_s,wait_marked_s,wait_unmarked_s,crossing_width_m,notes
+trunk,true,true,45,30,,25,"Walkable along (shoulder/sidewalk), crossed only at signals or marked crossings"
+trunk_link,true,true,40,20,,10,
+primary,true,true,40,20,,20,"Expected signal wait ~ half the pedestrian red of a ~90 s cycle"
+primary_link,true,true,30,15,,8,
+secondary,true,true,30,10,,14,
+secondary_link,true,true,25,8,,8,
+tertiary,true,false,,,,,"Crossable anywhere; set barrier=true to treat as an arterial"
+tertiary_link,true,false,,,,,
+unclassified,true,false,,,,,
+residential,true,false,,,,,
+living_street,true,false,,,,,
+service,true,false,,,,,
+road,true,false,,,,,
+track,true,false,,,,,
+pedestrian,true,false,,,,,
+footway,true,false,,,,,
+path,true,false,,,,,
+cycleway,true,false,,,,,
+bridleway,true,false,,,,,
+steps,true,false,,,,,
+corridor,true,false,,,,,
+platform,true,false,,,,,
+elevator,true,false,,,,,
+crossing,true,false,,,,,
+motorway,false,true,,,,,"Not walkable; only crossed where a walkway passes over/under (no shared node)"
+motorway_link,false,true,,,,,

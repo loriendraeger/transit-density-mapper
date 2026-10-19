@@ -1,0 +1,115 @@
+# Pipeline tunables. Passed to SQL as psql variables (e.g. -v crs=3071) by `transit sql`.
+# Keys must be unique across sections (they become flat psql variable names).
+
+[study_area]
+# Every Madison Metro stop (bbox -89.564, 42.987 to -89.206, 43.199) plus ~3 km, so a
+# 20-minute walk from the outermost stop stays inside the data.
+bbox_4326 = [-89.60, 42.96, -89.17, 43.225]
+
+[analysis]
+# NAD83(HARN) / Wisconsin Transverse Mercator, meters. Same as the statewide parcels.
+crs = 3071
+
+[stops]
+# Stops whose pairwise distances are all within this many meters merge into one stop
+# (complete-linkage clustering, stops.py). Complete linkage keeps chains of stops along
+# a dense street (downtown, ~100 m apart) from merging into one long cluster, which
+# single linkage (ST_ClusterDBSCAN) would do. BRT platforms sharing a GTFS
+# parent_station always merge. config/stop_merge_overrides.csv forces merges/splits.
+# 110 (2026-10-19): 100 left E Washington & North as two pairs ({183, 2859} and
+# {185, 2860}, 107 m across) because complete linkage paired the closest stops first.
+# At 110 the biggest clusters are all single intersections (max 6 platforms).
+cluster_max_diameter_m = 110
+
+[frequency]
+# Representative days: for each day type, the most common set of active service_ids
+# across the feed's dates of that type, and the first date with it. Set a date here
+# (YYYYMMDD) to override.
+weekday_date = ""        # Mon-Thu
+saturday_date = ""
+sunday_date = ""
+# Period windows as [start, end) hour pairs. A period's frequency is its departures
+# divided by its hours, so service outside every window (late night) doesn't count.
+peak_hours = [6, 9, 15, 18]           # weekday (Mon-Thu) peak
+offpeak_hours = [9, 15, 18, 22]       # weekday daytime/evening off-peak
+saturday_hours = [8, 20]
+sunday_hours = [8, 20]
+# Weighted aggregate default: hours per week each period stands for (5 weekdays).
+weight_peak = 30
+weight_offpeak = 50
+weight_saturday = 12
+weight_sunday = 12
+# A departure is one that allows boarding (pickup_type <> 1).
+# One-directional stops (one side of a one-way couplet like Gorham/Johnson, or a line
+# terminus) only see buses heading one way, while two-way stops count both directions.
+# Their effective frequency is multiplied by one_way_factor (decision 2026-10-19). A
+# stop is one-directional when all its departures head within one_way_spread_deg of
+# each other (bearing from the stop to each trip's next stop).
+one_way_factor = 2
+one_way_spread_deg = 100
+
+[walk]
+walk_speed_mps = 1.3          # ~4.7 km/h, a common planning value
+max_walk_min = 20             # slider max; catchments are computed to this
+band_min = 1                  # catchment band width (minutes)
+# A barrier road's two sides are separate walkways (left/right copies). Snapping uses
+# copies offset this far to each side, so a stop or a house snaps to its own side.
+side_offset_m = 6
+# A barrier-road crossing counts as signalized when a highway=traffic_signals node on
+# the same road is within this distance (signals are often tagged on the junction or
+# the stop lines, not on the crossing itself).
+signal_search_m = 30
+# Divided roads are two one-way carriageways, each crossed separately; each crossing
+# gets this fraction of the wait (one signal cycle covers both).
+oneway_wait_factor = 0.5
+# Untagged highway=crossing nodes / footway=crossing ways count as marked.
+untagged_crossing = "marked"
+# Max distance from a stop platform or generator to the walk network.
+snap_max_m = 250
+
+[generators]
+# Population (dasymetric, 40_generators/10_population.sql): each 2020 block's population
+# is split among its parcels in proportion to dwelling units. City of Madison parcels
+# carry TotalDwellingUnits. Elsewhere units are estimated: a residential (class 1)
+# parcel counts as one unit, unless it holds an OSM apartment/dormitory building; such
+# buildings (also on commercial class 2 parcels, where Wisconsin assesses apartment
+# buildings) count floor area / m2_per_unit, with default_levels when untagged.
+m2_per_unit = 90
+default_levels = 3
+# Destinations (30_pois.sql): POIs of the same category and name within this distance
+# are one place (a zoo or a garden mapped in several pieces).
+poi_dedupe_m = 300
+# Parks and gardens scale their weight by sqrt(area in hectares), clamped to this range,
+# so a big park counts more than a pocket park.
+park_scale_min = 0.5
+park_scale_max = 4
+# Polygon destinations are reachable at their nearest point: sample the outline every
+# poi_outline_step_m (plus an interior point) and use the quickest sample.
+poi_outline_step_m = 75
+# Hex grid for the density map layers (meters, flat-to-flat).
+hex_size_m = 150
+
+[catchments]
+# Blob polygons (export.py): reachable network pieces buffered by blob_buffer_m, then a
+# morphological closing (grow then shrink by blob_close_m) fills in the blocks between
+# streets, then simplified to blob_simplify_m.
+blob_buffer_m = 25
+blob_close_m = 40
+blob_simplify_m = 5
+
+[tiles]
+minzoom = 10
+maxzoom = 15
+basemap_maxzoom = 15
+attribution = "Madison Metro; © OpenStreetMap contributors; U.S. Census Bureau; City of Madison; WI SCO parcels"
+
+# Which exported layers go into which site/public/data/<name>.pmtiles, and their zooms.
+[tiles.files.network]
+layers = ["walk", "crossings"]
+minzoom = 12
+maxzoom = 15
+
+[tiles.files.generators]
+layers = ["hex", "pois", "platforms"]
+minzoom = 10
+maxzoom = 15

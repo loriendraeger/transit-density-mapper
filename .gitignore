@@ -1,0 +1,26 @@
+# Pipeline data (regenerable). Committed outputs live in site/public/data/.
+/data/
+
+# Secrets / local env
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+/site/dist/
+
+# QGIS scratch
+*.qgz~
+*.qgs~
+
+# Editors
+.vscode/
+
+# OS
+.DS_Store

@@ -1,0 +1,184 @@
+# Data sources for the pipeline. `transit download` fetches every entry with a `fetch`
+# method; `transit load` loads every entry with a `table`.
+#
+# Fields:
+#   name, publisher
+#   url         direct download (or service endpoint)
+#   landing     the dataset's page, when `url` is a direct download (the site links
+#               the landing page, else `url`)
+#   fetch       how `transit download` gets it: "http" (plain file), "zip" (download +
+#               unzip into local_dir), "arcgis" (ogr2ogr from an ArcGIS FeatureServer
+#               layer into a GeoPackage), "manual" (download by hand; see notes)
+#   local_path  the file the loader reads, relative to repo root
+#   format      as delivered
+#   layer       layer name inside the download, if multi-layer
+#   table       raw.<table> to load into
+#   crs         as delivered
+#   license     license / terms of use, plus required attribution
+#   attribution credit line the site shows
+#   retrieved   date downloaded for the current build (YYYY-MM-DD)
+#   verified    true once inspected during recon
+#   notes       recon findings
+
+[gtfs]
+name = "Madison Metro Transit GTFS"
+publisher = "City of Madison, Metro Transit"
+url = "https://transitdata.cityofmadison.com/GTFS/mmt_gtfs.zip"
+landing = "https://www.cityofmadison.com/metro/business/information-for-developers"
+fetch = "zip"
+local_path = "data/raw/gtfs/mmt_gtfs"
+format = "gtfs"
+table = "gtfs"          # -> raw.gtfs_<file> (all columns text)
+crs = "EPSG:4326"
+license = "Metro Transit Data Developer License Agreement and Terms of Use (terms_of_use.txt in the feed; https://www.cityofmadison.com/metro/business/information-for-developers/developer-license-agreement-and-terms-of-use). Non-exclusive right to use, reproduce and redistribute, limited to uses 'assisting mass transit riders or in furtherance of promoting public transportation'. Credit is optional; if given it must read exactly the attribution below. Data is as-is; licensee indemnifies the City."
+attribution = "Data provided under license granted by City of Madison, WI, Metro Transit."
+retrieved = "2026-10-19"
+verified = true
+notes = """
+Feed S072_202608240858, valid 2026-08-16 to 2026-12-05. 1,681 stops (1,659 used by
+stop_times), 29 routes (A, B BRT; C-W lettered; 28-84 numbered), 14,198 trips,
+603,661 stop_times. No frequencies.txt entries (all trips explicit).
+
+parent_station: only the 19 BRT stations (location_type=1) have children (38
+platforms, 2 each). Every other stop is standalone, so merging needs distance
+clustering (decision 2026-10-19). Example clusters:
+  - E Washington & North: 185 'North at E Washington' (B, D), 2859/2860
+    'Milwaukee-North' (A, B) 55-81 m apart; 183 'Milwaukee at E Washington' (D) 108 m.
+  - W Johnson & East Campus Mall (owner): 2843 'East Campus' (A, B, F) and 2866
+    'W Johnson at East Campus' (28, 38, 65, C, D, R), same direction, 53 m apart.
+Nearest-neighbour stop distance: median 46 m (opposite sides of a street), 90th pct
+117 m.
+
+Extended stops.txt fields (extended_data_dictionary.txt): cardinal_direction (vehicle
+heading 0/90/180/270), relative_position (1 after / 2 adjacent / 3 before / 4
+opposite cross street / 5 drive aisle), primary_street, cross_location,
+jurisdiction_id (CMAD, CFIT, CMID, CSUN, CMON, CVER, VSHO, UWIS, MTSM ...).
+
+Service calendar (trips per day): Mon-Thu with UW in session = service 9 (1,672
+trips); Mon-Thu outside the semester = 4 (1,608); Fri 11 (1,678) / 1; Sat 12 (940);
+Sun 8 (825); holidays 2/3/5/6/7/10. Representative dates are picked automatically as
+the most common service set per day type (pipeline.toml [frequency]).
+"""
+
+[osm]
+name = "OpenStreetMap Wisconsin extract"
+publisher = "Geofabrik"
+url = "https://download.geofabrik.de/north-america/us/wisconsin-latest.osm.pbf"
+landing = "https://download.geofabrik.de/north-america/us/wisconsin.html"
+fetch = "http"
+local_path = "data/raw/osm/wisconsin-latest.osm.pbf"
+format = "pbf"
+table = "osm"           # -> raw.osm_ways / osm_nodes / osm_pois (pyosmium, see osm.py)
+crs = "EPSG:4326"
+license = "ODbL 1.0"
+attribution = "© OpenStreetMap contributors"
+retrieved = "2026-10-17"
+verified = true
+notes = """
+Copied from ../public-private-shore (Geofabrik, 2026-10-17). Study-area cut
+(-89.60,42.96,-89.17,43.225): 18 MB; highways only: 6 MB.
+
+Pedestrian network recon (2026-10-19, km in the study bbox):
+  footway=sidewalk 2,672 | residential 2,739 | service 2,661 | footway (untagged) 792
+  tertiary 667 | secondary 399 | path 394 | cycleway 380 | primary 235
+  footway=crossing 186 | pedestrian 87 | trunk 43 | motorway 265 (excluded)
+Sidewalks are mapped as separate ways almost everywhere in Madison, but roads rarely
+say so (secondary: 18 km sidewalk=separate, 320 km untagged). Detect separate
+sidewalks geometrically if needed; don't trust the sidewalk=* tag.
+Crossings: ~4,600 footway=crossing ways (crossing=unmarked/uncontrolled/marked/
+traffic_signals, crossing:markings, crossing:signals) and ~16,800 highway=crossing
+nodes; 1,170 highway=traffic_signals nodes. Good enough for barrier-style crossings.
+"""
+
+[blocks]
+name = "2020 Census TIGER/Line blocks, Wisconsin (with 2020 population and housing units)"
+publisher = "U.S. Census Bureau"
+url = "https://www2.census.gov/geo/tiger/TIGER2020/TABBLOCK20/tl_2020_55_tabblock20.zip"
+landing = "https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.2020.html"
+fetch = "zip"
+local_path = "data/raw/blocks/tl_2020_55_tabblock20.shp"
+format = "shp"
+table = "blocks"
+crs = "EPSG:4269"
+license = "Public domain (U.S. Government work)"
+attribution = "U.S. Census Bureau, 2020 Census"
+retrieved = "2026-10-19"
+verified = false
+notes = "TABBLOCK20 carries POP20 and HOUSING20 (2020 Census P1/H1 counts) on each block."
+
+[lodes]
+name = "LEHD LODES 8 Workplace Area Characteristics, Wisconsin, all jobs, 2023"
+publisher = "U.S. Census Bureau, Longitudinal Employer-Household Dynamics"
+url = "https://lehd.ces.census.gov/data/lodes/LODES8/wi/wac/wi_wac_S000_JT00_2023.csv.gz"
+landing = "https://lehd.ces.census.gov/data/#lodes"
+fetch = "http"
+local_path = "data/raw/lodes/wi_wac_S000_JT00_2023.csv.gz"
+format = "csv.gz"
+table = "lodes_wac"
+crs = ""
+license = "Public domain (U.S. Government work)"
+attribution = "U.S. Census Bureau, LEHD Origin-Destination Employment Statistics (LODES 8, 2023)"
+retrieved = "2026-10-19"
+verified = false
+notes = """
+2023 is the latest year (2021-2023 listed). LODES 8 is on 2020 census blocks, so it
+joins to [blocks] on w_geocode = GEOID20. S000 = all workers; JT00 = all jobs. C000 =
+total jobs; CNS01-20 = jobs by NAICS sector.
+"""
+
+[madison_parcels]
+name = "City of Madison Tax Parcels (Assessor Property Information)"
+publisher = "City of Madison"
+url = "https://maps.cityofmadison.com/arcgis/rest/services/Public/OPEN_DATA2/FeatureServer/0"
+landing = "https://data-cityofmadison.opendata.arcgis.com/datasets/0338b0638e4749c395f8d38b39a5c466_0"
+fetch = "arcgis"
+local_path = "data/raw/madison_parcels/madison_parcels.gpkg"
+format = "gpkg"
+table = "madison_parcels"
+crs = "EPSG:3857"
+license = "City of Madison Data Policy (https://www.cityofmadison.com/policy/data): provided for informational purposes, no warranty, no attribution requirement."
+attribution = "City of Madison Assessor"
+retrieved = "2026-10-19"
+verified = false
+notes = """
+82,614 parcels (City of Madison only). TotalDwellingUnits gives dwelling units per
+parcel, the key field for placing population. Also PropertyClass, PropertyUse,
+TotalLivingArea, YearBuilt.
+"""
+
+[parcels]
+name = "Wisconsin Statewide Parcel Map V12 (Dane County extract)"
+publisher = "WI State Cartographer's Office / Dept. of Administration"
+url = "https://www.sco.wisc.edu/parcels/data-county/#v1200"
+fetch = "manual"
+local_path = "data/raw/parcels/V1200_Wisconsin_Parcels_DANE.gdb"
+format = "gdb"
+layer = "V1200_Wisconsin_Parcels_DANE"
+table = "parcels"
+crs = "EPSG:3071"
+license = "Free of charge; no formal license."
+attribution = "Wisconsin Statewide Parcel Map Initiative (V12), WI DOA / State Cartographer's Office"
+retrieved = "2026-10-16"
+verified = true
+notes = """
+Manual download (county file from the SCO page), or copy from
+../public-private-shore/data/raw/parcels/. Used outside the City of Madison only.
+No dwelling-unit field: there, a block's 2020 housing units are split among its
+residential parcels in proportion to improvement value (IMPVALUE). PROPCLASS
+1 = residential, 2 = commercial (includes apartment buildings of 4+ units in WI).
+"""
+
+[basemap]
+name = "Protomaps basemap (daily planet build)"
+publisher = "Protomaps"
+url = "https://build.protomaps.com/20261015.pmtiles"   # list: https://build-metadata.protomaps.dev/builds.json
+landing = "https://protomaps.com"
+build_version = "4.15.2"   # basemap schema version; must match @protomaps/basemaps in site/
+fetch = "manual"           # `transit basemap` extracts over HTTP; nothing to download
+format = "pmtiles"
+crs = "EPSG:3857"
+license = "ODbL (OSM data)"
+attribution = "Protomaps, © OpenStreetMap contributors"
+retrieved = "2026-10-17"
+verified = true
+notes = "Same build as ../public-private-shore."

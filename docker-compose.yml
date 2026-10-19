@@ -1,0 +1,39 @@
+name: transit-density-mapper
+
+# PostGIS + pgRouting, plus the pipeline tools container.
+services:
+  db:
+    build: ./db
+    environment:
+      POSTGRES_USER: ${PGUSER:-transit}
+      POSTGRES_PASSWORD: ${PGPASSWORD:-transit}
+      POSTGRES_DB: ${PGDATABASE:-transit}
+    # 5433 on the host so this can run alongside public-private-shore's db on 5432.
+    ports:
+      - "${PGPORT_HOST:-5433}:5432"
+    # Walk catchments for ~1,000 stops are memory-hungry; give PostgreSQL room.
+    command: ["postgres", "-c", "shared_buffers=1GB", "-c", "work_mem=256MB", "-c", "maintenance_work_mem=1GB", "-c", "max_wal_size=4GB"]
+    shm_size: 1g
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 20
+
+  # Tools container. Not started by `up`; the Makefile calls `docker compose run`.
+  pipeline:
+    build: ./pipeline
+    profiles: ["tools"]
+    env_file: .env
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+    volumes:
+      - .:/work
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
