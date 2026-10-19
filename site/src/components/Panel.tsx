@@ -1,0 +1,221 @@
+import { For, type JSX, Show } from 'solid-js'
+
+import {
+  DENSITY_BREAKS,
+  DENSITY_RAMP,
+  FREQ_BREAKS,
+  MODE,
+  SCORE_BREAKS,
+  SCORE_RAMP,
+} from '../map/colors'
+import {
+  blobOpacity,
+  data,
+  type Density,
+  density,
+  densityOpacity,
+  loadError,
+  selected,
+  setBlobOpacity,
+  setDensity,
+  setDensityOpacity,
+  setSelectedId,
+  setShowCrossings,
+  setShowPois,
+  setShowSpiderweb,
+  setStopColor,
+  showCrossings,
+  showPois,
+  showSpiderweb,
+  type StopColor,
+  stopColor,
+} from '../state/store'
+import Settings from './Settings'
+import StopDetail from './StopDetail'
+
+function Legend(props: { ramp: string[]; breaks: readonly number[]; unit: string }): JSX.Element {
+  function f(v: number): string {
+    return v.toLocaleString('en-US')
+  }
+  // ramp has one more class than breaks: < b0, b0-b1, ..., >= b_last.
+  function labels(): string[] {
+    const b = props.breaks
+    return [...props.ramp.keys()].map((i) => {
+      const lo = b.at(i - 1)
+      const hi = b.at(i)
+      if (i === 0 && hi !== undefined) {
+        return `< ${f(hi)}`
+      }
+      if (lo === undefined) {
+        return ''
+      }
+      return hi === undefined ? `${f(lo)}+` : `${f(lo)}–${f(hi)}`
+    })
+  }
+  return (
+    <div class="ramp-legend">
+      <div class="ramp">
+        <For each={props.ramp}>{(c) => <span style={{ background: c }} />}</For>
+      </div>
+      <div class="ramp-labels">
+        <For each={labels()}>{(l) => <span>{l}</span>}</For>
+      </div>
+      <div class="hint">{props.unit}</div>
+    </div>
+  )
+}
+
+function Check(props: {
+  label: string
+  checked: boolean
+  onChange: (v: boolean) => void
+}): JSX.Element {
+  return (
+    <label class="check">
+      <input
+        type="checkbox"
+        checked={props.checked}
+        onChange={(e) => {
+          props.onChange(e.currentTarget.checked)
+        }}
+      />
+      {props.label}
+    </label>
+  )
+}
+
+function Layers(): JSX.Element {
+  return (
+    <section>
+      <h2>Map</h2>
+      <label class="field">
+        <span>Stops colored by</span>
+        <select
+          value={stopColor()}
+          onChange={(e) => {
+            setStopColor(e.currentTarget.value as StopColor)
+          }}
+        >
+          <option value="score">Catchment score</option>
+          <option value="freq">Trips per hour</option>
+        </select>
+      </label>
+      <Legend
+        ramp={SCORE_RAMP[MODE]}
+        breaks={stopColor() === 'score' ? SCORE_BREAKS : FREQ_BREAKS}
+        unit={
+          stopColor() === 'score'
+            ? 'Score (0–100). Circle size: trips per hour.'
+            : 'Trips per hour. Circle size: trips per hour.'
+        }
+      />
+      <label class="field">
+        <span>Density layer</span>
+        <select
+          value={density()}
+          onChange={(e) => {
+            setDensity(e.currentTarget.value as Density)
+          }}
+        >
+          <option value="pop">Population</option>
+          <option value="jobs">Jobs</option>
+          <option value="none">None</option>
+        </select>
+      </label>
+      <Show when={density() !== 'none'}>
+        <Legend
+          ramp={DENSITY_RAMP[MODE]}
+          breaks={DENSITY_BREAKS[density() as 'pop' | 'jobs']}
+          unit={density() === 'pop' ? 'Residents per km²' : 'Jobs per km²'}
+        />
+        <label class="slider">
+          <span class="slider-label">
+            Density opacity<output>{Math.round(densityOpacity() * 100)}%</output>
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={densityOpacity()}
+            onInput={(e) => setDensityOpacity(Number(e.currentTarget.value))}
+          />
+        </label>
+      </Show>
+      <label class="slider">
+        <span class="slider-label">
+          Catchment opacity<output>{Math.round(blobOpacity() * 100)}%</output>
+        </span>
+        <input
+          type="range"
+          min={0}
+          max={0.9}
+          step={0.05}
+          value={blobOpacity()}
+          onInput={(e) => setBlobOpacity(Number(e.currentTarget.value))}
+        />
+      </label>
+      <Check label="Walking-path spiderweb" checked={showSpiderweb()} onChange={setShowSpiderweb} />
+      <Check label="Destinations (zoom in)" checked={showPois()} onChange={setShowPois} />
+      <Check
+        label="Arterial crossings the walk model allows"
+        checked={showCrossings()}
+        onChange={setShowCrossings}
+      />
+      <Show when={showCrossings()}>
+        <ul class="key">
+          <li>
+            <span class="dot" style={{ background: '#0ca30c' }} />✓ Signalized
+          </li>
+          <li>
+            <span class="dot" style={{ background: '#fab219' }} />! Marked, no signal
+          </li>
+        </ul>
+        <p class="hint">
+          Arterials can only be crossed at these points; anywhere else, walks detour to one.
+        </p>
+      </Show>
+    </section>
+  )
+}
+
+export default function Panel(): JSX.Element {
+  return (
+    <aside class="panel">
+      <Show when={loadError()}>
+        <p class="error">Couldn't load the data: {loadError()}</p>
+      </Show>
+      <Show
+        when={selected()}
+        fallback={
+          <>
+            <h1>Madison Metro stop catchments</h1>
+            <p class="lede">
+              Who and what is within a short walk of each bus stop, and how often the bus comes.
+              Click a stop to see its walkshed.
+            </p>
+          </>
+        }
+      >
+        {(s) => (
+          <>
+            <button class="link back" onClick={() => setSelectedId(null)}>
+              ← All stops
+            </button>
+            <StopDetail s={s()} compact />
+          </>
+        )}
+      </Show>
+      <Show when={data()}>
+        <details class="group" open={!selected()}>
+          <summary>Settings</summary>
+          <Settings />
+        </details>
+        <details class="group" open>
+          <summary>Layers</summary>
+          <Layers />
+        </details>
+      </Show>
+    </aside>
+  )
+}

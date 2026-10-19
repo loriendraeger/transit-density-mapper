@@ -1,0 +1,4 @@
+dist/
+# Pipeline outputs.
+public/data/
+package-lock.json
