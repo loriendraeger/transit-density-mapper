@@ -15,8 +15,9 @@ SELECT
     e.tags->>'highway' AS highway,
     e.tags->>'name' AS name,
     -- An explicit pedestrian crossing (footway=crossing, or highway=crossing on a way).
-    (e.tags->>'footway' = 'crossing' OR e.tags->>'highway' = 'crossing'
-     OR e.tags->>'cycleway' = 'crossing' OR e.tags->>'path' = 'crossing') AS is_crossing,
+    coalesce(e.tags->>'footway' = 'crossing' OR e.tags->>'highway' = 'crossing'
+             OR e.tags->>'cycleway' = 'crossing' OR e.tags->>'path' = 'crossing', false)
+        AS is_crossing,
     e.tags->>'crossing' AS crossing,
     e.tags->>'crossing:markings' AS crossing_markings,
     e.tags->>'crossing:signals' AS crossing_signals,
