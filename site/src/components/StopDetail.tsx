@@ -103,20 +103,38 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
             rank {props.s.rank} of {data()?.stops.length ?? 0}
           </span>
         </div>
-        <div class="tile">
+        <div class="tile" classList={{ doubled: stop().one_way }}>
           <span class="tile-label">{PERIOD_LABELS[period()]}</span>
-          <span class="tile-value">{fmt(props.s.freq, 1)}</span>
+          <span class="tile-value">
+            {fmt(props.s.freq, 1)}
+            <Show when={stop().one_way}>
+              <span class="badge">×{oneWayFactor()}</span>
+            </Show>
+          </span>
           <span class="hint">
             trips/hour
-            <Show when={headwayMin(props.s.freq)}>{(h) => <> · every {fmt(h(), 0)} min</>}</Show>
+            <Show
+              when={stop().one_way}
+              fallback={
+                <Show when={headwayMin(props.s.freq)}>
+                  {(h) => <> · every {fmt(h(), 0)} min</>}
+                </Show>
+              }
+            >
+              {' '}
+              (scheduled {fmt(props.s.freq / oneWayFactor(), 1)})
+            </Show>
           </span>
         </div>
       </div>
       <Show when={stop().one_way}>
-        <p class="hint">
-          ◎ One-directional stop: buses here all head the same way, so its trips count ×
-          {oneWayFactor()}.
-        </p>
+        <div class="callout" role="note">
+          <strong>◎ Counted ×{oneWayFactor()}: one direction only.</strong> Every bus here heads the
+          same way (one side of a one-way pair like Johnson/Gorham, or the end of a line). The
+          return trip stops a block or so away, so this stop's{' '}
+          {fmt(props.s.freq / oneWayFactor(), 1)} scheduled trips/hour count as{' '}
+          {fmt(props.s.freq, 1)}.
+        </div>
       </Show>
 
       <h2>What's within {walkMin()} minutes</h2>
@@ -157,7 +175,10 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
         </For>
       </div>
       <HourlyChart counts={stop().hourly[day()]} />
-      <p class="hint">All routes, buses you can board, on {data()?.rep_dates[day()] ?? ''}.</p>
+      <p class="hint">
+        All routes, buses you can board, on {data()?.rep_dates[day()] ?? ''}
+        <Show when={stop().one_way}> (scheduled, not doubled)</Show>.
+      </p>
 
       <h2>Trips per hour by route</h2>
       <table class="mini">

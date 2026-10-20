@@ -93,6 +93,7 @@ export interface CatchmentIndex {
 export const WALK_LAYER = 'walk'
 export const CROSSINGS_LAYER = 'crossings'
 export const HEX_LAYER = 'hex'
+export const HEX_PARTS_LAYER = 'hex_parts'
 export const POIS_LAYER = 'pois'
 export const PLATFORMS_LAYER = 'platforms'
 export const ROUTES_LAYER = 'routes'

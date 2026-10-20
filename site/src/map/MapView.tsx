@@ -1,11 +1,12 @@
 import 'maplibre-gl/dist/maplibre-gl.css'
 
-import { layers, namedFlavor } from '@protomaps/basemaps'
+import { layers } from '@protomaps/basemaps'
 import type { FeatureCollection, Point } from 'geojson'
 import {
   addProtocol,
   AttributionControl,
   type ExpressionSpecification,
+  type FilterSpecification,
   type GeoJSONSource,
   Map as MlMap,
   NavigationControl,
@@ -32,6 +33,7 @@ import { blobFeatures, type Catchment, loadCatchment } from '../lib/catchment'
 import {
   CROSSINGS_LAYER,
   HEX_LAYER,
+  HEX_PARTS_LAYER,
   PLATFORMS_LAYER,
   POIS_LAYER,
   ROUTES_LAYER,
@@ -45,7 +47,7 @@ import {
   data,
   decay,
   DEFAULT_WALK_MIN,
-  density,
+  densities,
   densityOpacity,
   flyRequest,
   oneWayFactor,
@@ -62,10 +64,13 @@ import {
 import {
   CATCHMENT,
   DENSITY_BREAKS,
-  DENSITY_RAMP,
+  DENSITY_FIELD,
+  DENSITY_RAMPS,
   FREQ_BREAKS,
+  type Generator,
   INK_2,
   MODE,
+  neutralFlavor,
   SCORE_BREAKS,
   SCORE_RAMP,
   stepExpr,
@@ -134,7 +139,7 @@ export default function MapView(): JSX.Element {
           blob: { type: 'geojson', data: EMPTY },
           'blob-hover': { type: 'geojson', data: EMPTY },
         },
-        layers: layers('protomaps', namedFlavor(flavor), { lang: 'en' }),
+        layers: layers('protomaps', neutralFlavor(mode), { lang: 'en' }),
       },
     })
     m.addControl(new AttributionControl({ compact: true }))
@@ -167,16 +172,27 @@ export default function MapView(): JSX.Element {
     // Under the place labels of the basemap, so street names stay readable.
     const beforeLabels = m.getStyle().layers.find((l) => l.type === 'symbol')?.id
 
-    m.addLayer(
-      {
-        id: 'density',
-        type: 'fill',
-        source: 'generators',
-        'source-layer': HEX_LAYER,
-        paint: { 'fill-color': DENSITY_RAMP[mode][0], 'fill-opacity': 0.5 },
-      },
-      beforeLabels,
-    )
+    // Generator density hexes: whole hexes for one generator, halves for two, thirds
+    // for three (one piece per generator); only one of these layers is visible at a time.
+    const densityLayers: [string, string, FilterSpecification | null][] = [
+      ['density', HEX_LAYER, null],
+      ['density-half', HEX_PARTS_LAYER, ['==', ['get', 'split'], 'half']],
+      ['density-third', HEX_PARTS_LAYER, ['==', ['get', 'split'], 'third']],
+    ]
+    for (const [id, layer, filter] of densityLayers) {
+      m.addLayer(
+        {
+          id,
+          type: 'fill',
+          source: 'generators',
+          'source-layer': layer,
+          ...(filter ? { filter } : {}),
+          layout: { visibility: 'none' },
+          paint: { 'fill-color': surface, 'fill-opacity': 0.5 },
+        },
+        beforeLabels,
+      )
+    }
     m.addLayer(
       {
         id: 'blob',
@@ -248,6 +264,22 @@ export default function MapView(): JSX.Element {
         'line-opacity': 0,
       },
     })
+    // The hovered stop's spiderweb: thin and gray, under the selected one's violet.
+    m.addLayer(
+      {
+        id: 'spiderweb-hover',
+        type: 'line',
+        source: 'network',
+        'source-layer': WALK_LAYER,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': mode === 'dark' ? '#f0efec' : '#2c2c2a',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 12, 0.5, 16, 1.5],
+          'line-opacity': 0,
+        },
+      },
+      'spiderweb',
+    )
     m.addLayer({
       id: 'crossings',
       type: 'circle',
@@ -485,24 +517,33 @@ export default function MapView(): JSX.Element {
       lastSel = id
     })
 
-    // Density layer.
+    // Density layers: the selected generators, in GENERATORS order, get the hex pieces
+    // (slot 0, 1, 2) of the layer matching their count.
+    function densityRamp(g: Generator): ExpressionSpecification {
+      return stepExpr(['get', DENSITY_FIELD[g]], DENSITY_RAMPS[g][mode], DENSITY_BREAKS[g])
+    }
     createEffect(() => {
-      const dens = density()
-      m.setLayoutProperty('density', 'visibility', dens === 'none' ? 'none' : 'visible')
-      if (dens !== 'none') {
-        m.setPaintProperty(
-          'density',
-          'fill-color',
-          stepExpr(
-            ['get', dens === 'pop' ? 'pop_km2' : 'jobs_km2'],
-            DENSITY_RAMP[mode],
-            DENSITY_BREAKS[dens],
-          ),
-        )
-      }
+      const gens = densities()
+      const active = ['', 'density', 'density-half', 'density-third'].at(gens.length) ?? ''
       // Fade the density under a catchment so the blob reads.
       const op = densityOpacity() * (selectedId() ? 0.3 : 1)
-      m.setPaintProperty('density', 'fill-opacity', op)
+      for (const id of ['density', 'density-half', 'density-third']) {
+        m.setLayoutProperty(id, 'visibility', id === active ? 'visible' : 'none')
+        m.setPaintProperty(id, 'fill-opacity', op)
+      }
+      const ramps = gens.map(densityRamp)
+      if (ramps.length === 1) {
+        m.setPaintProperty(active, 'fill-color', ramps[0])
+      } else if (ramps.length > 1) {
+        // Piece `slot` shows the slot-th selected generator.
+        const cases = ramps.slice(0, -1).flatMap((r, i) => [i, r])
+        m.setPaintProperty(active, 'fill-color', [
+          'match',
+          ['get', 'slot'],
+          ...cases,
+          ramps[ramps.length - 1],
+        ] as unknown as ExpressionSpecification)
+      }
     })
     createEffect(() => {
       m.setLayoutProperty('destinations', 'visibility', showPois() ? 'visible' : 'none')
@@ -568,13 +609,30 @@ export default function MapView(): JSX.Element {
     )
 
     // Hover preview: after a short pause on a stop (so sweeping across stops doesn't
-    // fetch them all), show its blob faintly. Not for the selected stop.
+    // fetch them all), show its blob faintly and its spiderweb in gray. Not for the
+    // selected stop. The spiderweb uses its own feature-state key (h) on the same tiles.
     const hoverSrc = m.getSource<GeoJSONSource>('blob-hover')
     let hoverTimer: ReturnType<typeof setTimeout> | undefined
+    let hoverEdges: number[] = []
+    function clearHoverWeb(): void {
+      for (const id of hoverEdges) {
+        m.removeFeatureState({ source: 'network', sourceLayer: WALK_LAYER, id }, 'h')
+      }
+      hoverEdges = []
+    }
     createEffect(
       on([hoverId, selectedId, walkMin, decay, blobOpacity], ([id, sel]) => {
         clearTimeout(hoverTimer)
         void hoverSrc?.setData(EMPTY)
+        clearHoverWeb()
+        const limit = untrack(walkMin) * 60
+        const h: ExpressionSpecification = ['coalesce', ['feature-state', 'h'], 1e9]
+        m.setPaintProperty('spiderweb-hover', 'line-opacity', [
+          'case',
+          ['<=', h, limit],
+          ['interpolate', ['linear'], h, 0, 0.7, limit, 0.15],
+          0,
+        ])
         m.setFilter('blob-hover-outline', ['==', ['get', 'band'], untrack(walkMin)])
         const d = data()
         if (id === null || id === sel || !d) {
@@ -590,6 +648,15 @@ export default function MapView(): JSX.Element {
                 const n = d.settings.max_walk_min / d.settings.band_min
                 const w = bandWeights(decay(), walkMin(), n, d.settings.band_min)
                 void hoverSrc?.setData(blobFeatures(c, w, blobOpacity()))
+                if (showSpiderweb()) {
+                  for (const [edge, t] of c.edges) {
+                    m.setFeatureState(
+                      { source: 'network', sourceLayer: WALK_LAYER, id: edge },
+                      { h: t },
+                    )
+                  }
+                  hoverEdges = [...c.edges.keys()]
+                }
               })
             })
             .catch((e: unknown) => {

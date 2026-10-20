@@ -3,6 +3,7 @@ import { createEffect, createSignal, on } from 'solid-js'
 
 import { type Period, PERIODS } from '../lib/contract'
 import { type DecayKind, DECAYS } from '../lib/scoring'
+import { GENERATORS } from '../map/colors'
 import {
   data,
   decay,
@@ -10,14 +11,13 @@ import {
   DEFAULT_WALK_MIN,
   defaultPeriodWeights,
   defaultWeights,
-  type Density,
-  density,
+  densities,
   flyTo,
   period,
   periodWeights,
   selectedId,
   setDecay,
-  setDensity,
+  setDensities,
   setPeriod,
   setPeriodWeights,
   setSelectedId,
@@ -38,7 +38,7 @@ import {
 //   cw=food:2,parks:0         destination category weights that differ from 1
 //   period=peak|offpeak|saturday|sunday   (default: weighted aggregate)
 //   pw=30,50,12,12            aggregate's period weights (peak, offpeak, sat, sun)
-//   density=jobs|none         density layer (default: population)
+//   density=pop,jobs,dest | none   hex layers shown (default: pop)
 
 type Params = Record<string, string | undefined>
 
@@ -85,11 +85,8 @@ function applyParams(p: Params): void {
     pw[k] = num(pws[i], 0, 1000) ?? pw[k]
   })
   setPeriodWeights(pw)
-  setDensity(
-    (['pop', 'jobs', 'none'] as Density[]).includes(p.density as Density)
-      ? (p.density as Density)
-      : 'pop',
-  )
+  const wanted = (p.density ?? 'pop').split(',')
+  setDensities(GENERATORS.filter((g) => wanted.includes(g)))
 
   // A merged stop's id, or any of its platforms' GTFS stop ids.
   const want = p.stop
@@ -102,6 +99,14 @@ function applyParams(p: Params): void {
       flyTo(stop)
     }
   }
+}
+
+function densityParam(): string | undefined {
+  const d = densities()
+  if (d.length === 1 && d[0] === 'pop') {
+    return undefined
+  }
+  return d.length ? d.join(',') : 'none'
 }
 
 /** The search params for the current state (defaults left out). */
@@ -135,7 +140,7 @@ export function currentParams(): Params {
     cw: cw.length ? cw.join(',') : undefined,
     period: period() === 'aggregate' ? undefined : period(),
     pw: pwChanged ? PERIODS.map((k) => String(pw[k])).join(',') : undefined,
-    density: density() === 'pop' ? undefined : density(),
+    density: densityParam(),
   }
 }
 

@@ -3,8 +3,10 @@ import { For, type JSX, Show } from 'solid-js'
 
 import {
   DENSITY_BREAKS,
-  DENSITY_RAMP,
+  DENSITY_RAMPS,
   FREQ_BREAKS,
+  GENERATOR_LABELS,
+  GENERATORS,
   MODE,
   SCORE_BREAKS,
   SCORE_RAMP,
@@ -12,14 +14,13 @@ import {
 import {
   blobOpacity,
   data,
-  type Density,
-  density,
+  densities,
   densityOpacity,
   loadError,
   oneWayFactor,
   selected,
   setBlobOpacity,
-  setDensity,
+  setDensities,
   setDensityOpacity,
   setSelectedId,
   setShowCrossings,
@@ -123,25 +124,38 @@ function Layers(): JSX.Element {
           One direction only: trips counted ×{oneWayFactor()}
         </li>
       </ul>
-      <label class="field">
-        <span>Density layer</span>
-        <select
-          value={density()}
-          onChange={(e) => {
-            setDensity(e.currentTarget.value as Density)
-          }}
-        >
-          <option value="pop">Population</option>
-          <option value="jobs">Jobs</option>
-          <option value="none">None</option>
-        </select>
-      </label>
-      <Show when={density() !== 'none'}>
-        <Legend
-          ramp={DENSITY_RAMP[MODE]}
-          breaks={DENSITY_BREAKS[density() as 'pop' | 'jobs']}
-          unit={density() === 'pop' ? 'Residents per km²' : 'Jobs per km²'}
-        />
+      <h3 class="subhead">Trip generators</h3>
+      <p class="hint">
+        Pick one or more: with two, each hexagon splits in half (left, right); with three, in
+        thirds, in this order.
+      </p>
+      <For each={GENERATORS}>
+        {(g) => (
+          <>
+            <Check
+              label={GENERATOR_LABELS[g].label}
+              checked={densities().includes(g)}
+              onChange={(on) => {
+                const next = new Set(densities())
+                if (on) {
+                  next.add(g)
+                } else {
+                  next.delete(g)
+                }
+                setDensities(GENERATORS.filter((x) => next.has(x)))
+              }}
+            />
+            <Show when={densities().includes(g)}>
+              <Legend
+                ramp={DENSITY_RAMPS[g][MODE]}
+                breaks={DENSITY_BREAKS[g]}
+                unit={GENERATOR_LABELS[g].unit}
+              />
+            </Show>
+          </>
+        )}
+      </For>
+      <Show when={densities().length > 0}>
         <label class="slider">
           <span class="slider-label">
             Density opacity<output>{Math.round(densityOpacity() * 100)}%</output>

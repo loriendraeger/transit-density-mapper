@@ -23,11 +23,22 @@ FROM net.base_edges e JOIN net.vertices v ON v.id = e.source
 WHERE e.kind = 'cross'
 ORDER BY v.node, e.cost;
 
+DROP VIEW IF EXISTS export.hex;
 CREATE OR REPLACE VIEW export.hex AS
 SELECT id, round(pop)::int AS pop, round(jobs)::int AS jobs,
        round(pop / area_km2)::int AS pop_km2, round(jobs / area_km2)::int AS jobs_km2,
+       round(dest / area_km2)::int AS dest_km2,
        ST_Transform(geom, 4326)::geometry(Polygon, 4326) AS geom
 FROM gen.hex;
+
+-- Hex halves and thirds (40_generators/50_hex.sql) with the same densities, so the map
+-- can give each selected generator its own piece.
+CREATE OR REPLACE VIEW export.hex_parts AS
+SELECT row_number() OVER (ORDER BY p.hex_id, p.split, p.slot)::int AS id, p.split, p.slot,
+       round(h.pop / h.area_km2)::int AS pop_km2, round(h.jobs / h.area_km2)::int AS jobs_km2,
+       round(h.dest / h.area_km2)::int AS dest_km2,
+       ST_Transform(p.geom, 4326)::geometry(Polygon, 4326) AS geom
+FROM gen.hex_parts p JOIN gen.hex h ON h.id = p.hex_id;
 
 -- osm_id, not id: tippecanoe uses `id` as the numeric feature id, and these are text.
 DROP VIEW IF EXISTS export.pois;

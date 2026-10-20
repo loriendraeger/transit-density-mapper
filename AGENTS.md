@@ -229,12 +229,22 @@ exports in EPSG:4326.
 
 ## Frontend
 
-- **Map tab** (`site/src/map/MapView.tsx`): density hexes (blue), route lines (GTFS shapes in
+- **Generator hexes (decided 2026-10-19)**: checkboxes for population (blue), jobs (green)
+  and culture (yellow; destination points per km²). With two checked each hex splits
+  into halves, with three into thirds (rhombi), one generator per piece, in that order
+  (`gen.hex_parts`, `export.hex_parts`).
+- **Basemap**: Protomaps style with its greens (parks, woods, scrub, green landcover)
+  replaced by the land color (`neutralFlavor` in `map/colors.ts`), so green only means
+  jobs. A style override; the tiles are unchanged.
+- **Map tab** (`site/src/map/MapView.tsx`): generator hexes (above), route lines (GTFS shapes in
   Metro's route colors), stops as circles sized by √frequency and colored by score or
   frequency (orange ramp), an outer ring on one-directional stops (◎, trips counted ×2),
   the selected stop's blob + spiderweb (violet; spiderweb colored per edge with
-  MapLibre feature-state), a hover preview of another stop's blob (fainter, dashed
-  outline at the walk limit), optional destinations and arterial-crossing layers.
+  MapLibre feature-state), a hover preview of another stop (fainter blob, dashed outline
+  at the walk limit, gray spiderweb on feature-state key `h`), optional destinations and
+  arterial-crossing layers.
+- **One-way stops in the drawer**: ×2 badge on the frequency tile, the scheduled number,
+  and a callout explaining the doubling.
 - **Layout (decided 2026-10-19)**: the left panel never changes (intro, settings,
   layers); a selected stop opens in a **right-hand drawer** (bottom sheet on phones,
   replacing the panel until closed).
@@ -243,8 +253,8 @@ exports in EPSG:4326.
 - **About tab**: methodology and sources.
 - Settings live in the URL (`state/url.ts`); `?stop=` accepts a merged-stop id or any
   platform's GTFS stop id.
-- Colors: three validated ramps that don't compete (dataviz validator, light and dark):
-  orange for scores, blue for density, violet for catchments. See `map/colors.ts`.
+- Colors (`map/colors.ts`, checked with the dataviz validator, light and dark): orange
+  for scores; blue, green, yellow for the three generators; violet for catchments.
 
 ## Testing
 

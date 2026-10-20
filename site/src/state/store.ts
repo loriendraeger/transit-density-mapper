@@ -2,6 +2,7 @@ import { createMemo, createRoot, createSignal } from 'solid-js'
 
 import type { Period, StopsFile } from '../lib/contract'
 import { type Decay, scoreAll, type Scored, type Settings, type Weights } from '../lib/scoring'
+import type { Generator } from '../map/colors'
 
 // App state as Solid signals. The map subscribes and updates sources/paint in place.
 
@@ -97,8 +98,8 @@ export const selected = createRoot(() =>
   }),
 )
 
-export type Density = 'pop' | 'jobs' | 'none'
-export const [density, setDensity] = createSignal<Density>('pop')
+/** Which trip generators the hex layer shows (one hex piece each when several). */
+export const [densities, setDensities] = createSignal<Generator[]>(['pop'])
 export const [densityOpacity, setDensityOpacity] = createSignal(0.45)
 export const [showPois, setShowPois] = createSignal(false)
 export const [showSpiderweb, setShowSpiderweb] = createSignal(true)

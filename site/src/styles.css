@@ -336,8 +336,13 @@ details.sub > summary {
 
 /* --- legends ------------------------------------------------------------------- */
 
+.subhead {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 16px 0 2px;
+}
 .ramp-legend {
-  margin: 4px 0 12px;
+  margin: 2px 0 10px 24px;
 }
 .ramp {
   display: flex;
@@ -431,6 +436,29 @@ details.sub > summary {
   font-size: 26px;
   font-weight: 600;
   font-variant-numeric: proportional-nums;
+}
+.tile.doubled {
+  border-color: var(--score);
+}
+.badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--score);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+.callout {
+  margin: 4px 0 8px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--score);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--score) 10%, transparent);
+  font-size: 13px;
+  line-height: 1.45;
 }
 .meter {
   margin: 10px 0;
