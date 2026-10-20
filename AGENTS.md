@@ -116,7 +116,7 @@ URLs, layers, fields, licenses and recon findings live in `config/sources.toml`.
 download -> load -> staging -> network -> stops -> generators -> catchments -> export -> site
  (files)  (ogr2ogr,  (SQL:      (SQL:      (Python    (SQL:        (pgRouting   (tiles,
           COPY,      typed,     corner     clustering dasymetric   per stop,    stops.json,
-          pyosmium)  3071)      model)     + SQL)     pop, POIs)   SQL sums)    catchments.json)
+          pyosmium)  3071)      model)     + SQL)     pop, POIs)   SQL sums)    catchments.bin)
 ```
 
 Same file/database hybrid as public-private-shore: raw downloads are **files**, analysis

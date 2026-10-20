@@ -57,7 +57,7 @@ def reach():
 
 @app.command()
 def export():
-    """Write site/public/data/: tiles, stops.json, catchments.json."""
+    """Write site/public/data/: tiles, stops.json, catchments.bin."""
     export_mod.tiles()
     export_mod.stops_json()
     export_mod.catchments()
