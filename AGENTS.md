@@ -222,10 +222,16 @@ exports in EPSG:4326.
   parcels keep them at a point inside the block (379 blocks).
 - **Jobs**: LODES block totals at a point inside the block.
 - **Destinations**: OSM POIs → categories by the first matching rule; same-named pieces
-  of one place within 300 m merge; parks/gardens scale by √(area in ha), clamped
+  of one place within 300 m merge; parks/gardens inside a bigger park/garden are dropped
+  as part of it (2026-10-19: the UW Arboretum had ~40 tree-collection points inside
+  Longenecker Gardens, each counted as a botanical garden); parks/gardens scale by √(area in ha), clamped
   0.5–4; polygons reachable from outline points every 75 m. Private ones dropped
   (`access=private/no`, `garden:type=residential/private`).
-- **Density map layer**: 150 m hexagons of population and jobs per km².
+- **Density map layer**: 150 m hexagons of population, jobs and destination points per
+  km². A destination area (park, garden, campus) spreads its weight over the hexes it
+  covers, by area; points count where they fall. Destinations are stored per category
+  (`d_<category>`) and the site sums them with the user's category weights, so the
+  category sliders recolor the layer.
 
 ## Frontend
 

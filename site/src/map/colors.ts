@@ -54,18 +54,18 @@ export const INK_2: Record<Mode, string> = { light: '#52514e', dark: '#c3c2b7' }
 /** Class breaks for the score ramp (0-100). */
 export const SCORE_BREAKS = [20, 40, 60, 80]
 
-/** Density breaks per km2 (destinations: roughly the 50th-95th percentile of hexes). */
+/** Density breaks per km2 (destinations: roughly the 60th-95th percentile of hexes). */
 export const DENSITY_BREAKS: Record<Generator, number[]> = {
   pop: [1000, 2500, 5000, 10000],
   jobs: [1000, 3000, 10000, 30000],
-  dest: [100, 200, 400, 800],
+  dest: [20, 50, 100, 200],
 }
 
-/** Hex attribute holding each generator's density. */
-export const DENSITY_FIELD: Record<Generator, string> = {
+/** Hex attribute holding each generator's density (destinations are summed from
+ * per-category d_<category> attributes instead; see MapView densityValue). */
+export const DENSITY_FIELD: Record<Exclude<Generator, 'dest'>, string> = {
   pop: 'pop_km2',
   jobs: 'jobs_km2',
-  dest: 'dest_km2',
 }
 
 export function stepExpr(

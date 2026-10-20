@@ -60,6 +60,7 @@ import {
   showSpiderweb,
   stopColor,
   walkMin,
+  weights,
 } from '../state/store'
 import {
   CATCHMENT,
@@ -519,8 +520,20 @@ export default function MapView(): JSX.Element {
 
     // Density layers: the selected generators, in GENERATORS order, get the hex pieces
     // (slot 0, 1, 2) of the layer matching their count.
+    /** A generator's density in a hex. Destinations: the per-category densities
+     * (d_<category>) weighted by the destination category weights, so re-weighting
+     * categories recolors the layer. */
+    function densityValue(g: Generator): ExpressionSpecification {
+      if (g !== 'dest') {
+        return ['get', DENSITY_FIELD[g]]
+      }
+      const terms = Object.entries(weights().categories)
+        .filter(([, w]) => w > 0)
+        .map(([cat, w]): ExpressionSpecification => ['*', w, ['coalesce', ['get', `d_${cat}`], 0]])
+      return terms.length ? (['+', 0, ...terms] as ExpressionSpecification) : ['literal', 0]
+    }
     function densityRamp(g: Generator): ExpressionSpecification {
-      return stepExpr(['get', DENSITY_FIELD[g]], DENSITY_RAMPS[g][mode], DENSITY_BREAKS[g])
+      return stepExpr(densityValue(g), DENSITY_RAMPS[g][mode], DENSITY_BREAKS[g])
     }
     createEffect(() => {
       const gens = densities()

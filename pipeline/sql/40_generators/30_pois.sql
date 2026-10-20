@@ -28,6 +28,18 @@ SELECT id, name, category, kind,
        geom
 FROM dedup;
 ALTER TABLE gen.pois ADD PRIMARY KEY (id);
+CREATE INDEX ON gen.pois USING gist (geom);
+
+-- Drop places inside a bigger place of the same category (:poi_nested_categories):
+-- they're part of it.
+DELETE FROM gen.pois p
+USING gen.pois q
+WHERE p.category = q.category
+  AND p.category = ANY (string_to_array(:'poi_nested_categories', ','))
+  AND q.id <> p.id
+  AND q.area_m2 > p.area_m2
+  AND q.geom && p.geom
+  AND ST_Contains(q.geom, ST_PointOnSurface(p.geom));
 
 -- Access points: a point inside each POI, plus points along polygon outlines.
 DROP TABLE IF EXISTS gen.poi_points CASCADE;

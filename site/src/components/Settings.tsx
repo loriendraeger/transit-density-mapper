@@ -169,7 +169,7 @@ export default function Settings(): JSX.Element {
         <summary>Destination categories</summary>
         <p class="hint">
           Each place already carries a weight by kind (a zoo counts more than a café; see About).
-          These multiply whole categories.
+          These multiply whole categories, in the scores and on the map's destinations layer.
         </p>
         <For each={categories()}>
           {(cat) => (

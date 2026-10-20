@@ -79,6 +79,10 @@ default_levels = 3
 # Destinations (30_pois.sql): POIs of the same category and name within this distance
 # are one place (a zoo or a garden mapped in several pieces).
 poi_dedupe_m = 300
+# Places inside a bigger place of the same category are part of it, not destinations of
+# their own (the UW Arboretum's ~40 tree-collection points inside Longenecker Gardens,
+# a playground park inside a park): dropped for these categories (decision 2026-10-19).
+poi_nested_categories = ["parks", "gardens"]
 # Parks and gardens scale their weight by sqrt(area in hectares), clamped to this range,
 # so a big park counts more than a pocket park.
 park_scale_min = 0.5

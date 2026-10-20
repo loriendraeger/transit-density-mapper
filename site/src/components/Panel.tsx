@@ -149,7 +149,10 @@ function Layers(): JSX.Element {
               <Legend
                 ramp={DENSITY_RAMPS[g][MODE]}
                 breaks={DENSITY_BREAKS[g]}
-                unit={GENERATOR_LABELS[g].unit}
+                unit={
+                  GENERATOR_LABELS[g].unit +
+                  (g === 'dest' ? ', with the destination category weights from Settings' : '')
+                }
               />
             </Show>
           </>

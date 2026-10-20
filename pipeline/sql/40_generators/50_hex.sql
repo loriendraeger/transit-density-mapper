@@ -1,11 +1,11 @@
 -- Hex grid of population, jobs and destinations for the density map layers, plus each
 -- hex cut in halves and thirds, so the map can show two or three generators at once
 -- (one per piece).
--- One point per destination (its interior point), indexed, for counting per hex.
-DROP TABLE IF EXISTS gen.poi_centers;
-CREATE TABLE gen.poi_centers AS SELECT id, weight, ST_PointOnSurface(geom) AS geom FROM gen.pois;
-CREATE INDEX ON gen.poi_centers USING gist (geom);
-
+-- Destination weight per hex: a point counts in the hex it falls in; an area (park,
+-- garden, campus) spreads its weight over the hexes it covers, by area, so one big place
+-- shades several hexes lightly instead of one hex darkly.
+DROP TABLE IF EXISTS gen.poi_hex;
+CREATE TABLE gen.poi_hex (hex_id int, category text, weight float8);
 DROP TABLE IF EXISTS gen.hex CASCADE;
 CREATE TABLE gen.hex AS
 WITH grid AS (
@@ -16,13 +16,38 @@ WITH grid AS (
 SELECT row_number() OVER ()::int AS id, g.geom,
        coalesce((SELECT sum(pop) FROM gen.population p WHERE ST_Intersects(g.geom, p.geom)), 0) AS pop,
        coalesce((SELECT sum(jobs) FROM gen.jobs j WHERE ST_Intersects(g.geom, j.geom)), 0) AS jobs,
-       -- Destination points: each POI's weight, counted at its interior point.
-       coalesce((SELECT sum(weight) FROM gen.poi_centers d
-                 WHERE ST_Intersects(g.geom, d.geom)), 0) AS dest
+       0::float8 AS dest
 FROM grid g;
-DELETE FROM gen.hex WHERE pop = 0 AND jobs = 0 AND dest = 0;
+CREATE INDEX ON gen.hex USING gist (geom);
+INSERT INTO gen.poi_hex
+SELECT h.id, p.category, p.weight
+FROM gen.pois p JOIN gen.hex h ON ST_Intersects(h.geom, p.geom)
+WHERE p.area_m2 = 0
+UNION ALL
+SELECT h.id, p.category, p.weight * ST_Area(ST_Intersection(h.geom, p.geom)) / p.area_m2
+FROM gen.pois p JOIN gen.hex h ON ST_Intersects(h.geom, p.geom)
+WHERE p.area_m2 > 0;
+UPDATE gen.hex h SET dest = d.w
+FROM (SELECT hex_id, sum(weight) AS w FROM gen.poi_hex GROUP BY hex_id) d
+WHERE d.hex_id = h.id;
+DELETE FROM gen.hex WHERE pop = 0 AND jobs = 0 AND dest < 0.01;
 ALTER TABLE gen.hex ADD COLUMN area_km2 float8;
 UPDATE gen.hex SET area_km2 = ST_Area(geom) / 1e6;
+
+-- Destination points per hex and category, as one column per category (d_<category>,
+-- points per km2, NULL when none) so the site can re-weight categories and recolor the
+-- destinations layer. The columns follow the categories in the data, so the table's
+-- SQL is generated (\gexec runs each row of the query's result as a statement).
+DROP TABLE IF EXISTS gen.hex_dest CASCADE;
+SELECT format(
+    'CREATE TABLE gen.hex_dest AS SELECT h.id AS hex_id, %s FROM gen.hex h '
+    'LEFT JOIN gen.poi_hex p ON p.hex_id = h.id GROUP BY h.id, h.area_km2',
+    string_agg(format('nullif(round(coalesce(sum(p.weight) FILTER (WHERE p.category = %L), 0) '
+                      '/ h.area_km2)::int, 0) AS %I', category, 'd_' || category),
+               ', ' ORDER BY category))
+FROM (SELECT DISTINCT category FROM gen.pois) c
+\gexec
+ALTER TABLE gen.hex_dest ADD PRIMARY KEY (hex_id);
 
 -- ST_HexagonGrid's hexes have flat tops; their ring starts at the left vertex and runs
 -- counterclockwise: v0 left, v1 bottom-left, v2 bottom-right, v3 right, v4 top-right,
