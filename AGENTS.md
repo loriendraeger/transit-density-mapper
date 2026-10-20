@@ -70,7 +70,7 @@ A **for-fun learning project**. The owner is interested in GIS and transit.
 | Blob rendering (2026-10-19) | Cumulative 1-minute bands stacked with per-band opacities solved so the **blob's opacity at time t follows the score's decay curve**. |
 | Licenses (2026-10-19) | **Same split as the sibling**: code GPL-3.0-or-later (`LICENSE`), docs CC BY-SA 4.0 (`LICENSE-DOCS`), outputs ODbL 1.0 with upstream attributions (`LICENSE-DATA`; required by OSM). |
 | Site data in git (2026-10-19) | `site/public/data/` is **gitignored** until the owner is happy with it. |
-| Catchment file (2026-10-19) | All stops' blobs and spiderwebs in **one `catchments.json`** (owner preference over one file per stop), loaded on the first stop selection. Size is an open question. |
+| Catchment file (2026-10-19) | All stops' blobs and spiderwebs in **one file**, `catchments.bin` (owner preference over one file per stop): a JSON index of byte ranges, then one raw-deflate record per stop (varint delta-encoded edge ids and coordinates, walk times as bytes in 10 s steps). The site fetches the index once and each selected stop's bytes with an HTTP range request, like PMTiles. 7.9 MB total (was 41 MB as JSON); ~9 kB per stop. Tried and rejected: storing the blob as non-overlapping rings (bigger: every boundary is stored twice). |
 
 ## Tech stack
 
@@ -268,11 +268,6 @@ Playwright with the system Chrome and `--use-gl=angle --use-angle=metal`.
 
 ## Open questions
 
-- **Catchment data size**: `catchments.json` is 41 MB (12 MB gzipped), loaded on the
-  first stop selection. One file was the owner's preference; the owner will ask about
-  why it's so big. Most of it is the blob polygons (20 cumulative bands per stop) and the
-  spiderweb edge lists. Levers: coarser bands for the blob, coarser coordinates,
-  per-stop files, or computing blobs in the browser from the spiderweb.
 - Weekday peak windows and period weights are first guesses; check them against Metro's
   actual service span.
 - Tertiary roads are not barriers. Some (e.g. busy collectors) might deserve it;

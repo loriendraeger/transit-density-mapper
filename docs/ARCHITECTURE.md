@@ -60,7 +60,7 @@ stage and everything after it.
 | File | Contents | Made by |
 |---|---|---|
 | `stops.json` | Every merged stop: name, codes, routes, one-way flag, trips/hour by period × route, departures by hour × day type, banded totals per measure; plus routes, measures, settings, sources | `export.stops_json` |
-| `catchments.json` | Per stop: spiderweb (walk-network edge ids, delta-encoded, + seconds) and blob (20 cumulative polygons, delta-encoded 1e-5° integers) | `export.catchments` |
+| `catchments.bin` | Per stop: spiderweb (walk-network edge ids + walk times) and blob (20 cumulative polygons), in one binary file with a JSON index of byte ranges; layout documented at `CATCH_FILE` in export.py | `export.catchments` |
 | `network.pmtiles` | `walk` (edges, feature id = `staging.osm_edges.id`), `crossings` | tippecanoe |
 | `generators.pmtiles` | `hex`, `pois`, `platforms` | tippecanoe |
 | `basemap.pmtiles` | Protomaps extract | `pmtiles extract` |
@@ -75,7 +75,7 @@ Types for the JSON files: `site/src/lib/contract.ts`. Keep it in step with expor
 | `state/store.ts` | Signals: data, settings, selection, layer options; `scored` memo (every stop scored at the current settings) |
 | `state/url.ts` | Settings <-> URL search params, both ways |
 | `lib/scoring.ts` | Decay curves, band weights, component sums, normalization, frequencies |
-| `lib/catchment.ts` | Loads `catchments.json` once, decodes a stop; solves blob band opacities so the blob fades like the decay |
+| `lib/catchment.ts` | Fetches `catchments.bin`'s index, then one stop's record by HTTP range request (falls back to the whole file if the server ignores Range); inflates and decodes it; solves blob band opacities so the blob fades like the decay |
 | `map/MapView.tsx` | MapLibre map: sources, layers, effects that push state into the map |
 | `map/colors.ts` | Validated ramps and class breaks |
 | `components/` | Side panel, settings, stop detail, hourly chart (Observable Plot) |

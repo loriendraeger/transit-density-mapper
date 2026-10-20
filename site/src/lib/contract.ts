@@ -78,16 +78,16 @@ export interface StopsFile {
   stops: Stop[]
 }
 
-/** One stop's walkshed, from catchments.json (all stops, keyed by stop id). */
-export interface CatchmentFile {
-  /** Spiderweb: walk-network edge ids (delta-encoded, ascending) and walk times (s). */
-  edges: { id_deltas: number[]; t: number[] }
-  /** Blob: band i (cumulative, walk time <= (i + 1) minutes) as polygons of rings; each
-   * ring is [x0, y0, dx1, dy1, ...] in integer 1e-5 degrees. */
-  bands: number[][][][]
+/** The JSON index at the start of catchments.bin. */
+export interface CatchmentIndex {
+  version: number
+  /** Coordinates are integers in 1 / scale degrees. */
+  scale: number
+  /** Walk times are bytes in this many seconds. */
+  time_step_s: number
+  /** Stop id -> [byte offset, byte length] of its record. */
+  stops: Record<string, [number, number]>
 }
-
-export type CatchmentsFile = Record<string, CatchmentFile>
 
 // Tile layers (pipeline/sql/60_export/10_layers.sql).
 export const WALK_LAYER = 'walk'

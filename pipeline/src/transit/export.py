@@ -2,9 +2,9 @@
 
 - <file>.pmtiles   tile layers from the `export` schema views (GeoJSONSeq -> tippecanoe)
 - stops.json       every merged stop: frequencies, banded catchment totals, metadata
-- catchments.json every stop's spiderweb (walk-network edge ids + walk times) and blob
-                   (one polygon per minute band), keyed by stop id; the site loads it
-                   when a stop is first selected
+- catchments.bin  every stop's spiderweb (walk-network edge ids + walk times) and blob
+                   (one polygon per minute band) in one indexed binary file; the site
+                   fetches just the selected stop's bytes (HTTP range request)
 - basemap.pmtiles  Protomaps extract of the study area
 
 Shapes must match site/src/lib/contract.ts.
@@ -13,7 +13,9 @@ Shapes must match site/src/lib/contract.ts.
 import datetime
 import json
 import math
+import struct
 import subprocess
+import zlib
 from multiprocessing import Pool
 from pathlib import Path
 
@@ -28,7 +30,18 @@ from . import config
 
 EXPORT_DIR = config.BUILD / "export"
 SITE_DATA = config.SITE_DATA
-CATCH_FILE = SITE_DATA / "catchments.json"
+CATCH_FILE = SITE_DATA / "catchments.bin"
+# catchments.bin layout (little-endian; read by site/src/lib/catchment.ts):
+#   "TDMC" | u16 version | u32 index length | index (UTF-8 JSON) | records...
+# The index maps stop id -> [byte offset, byte length] of its record, so the site can
+# fetch one stop with an HTTP range request (like PMTiles does for tiles). A record is a
+# raw-deflate stream of unsigned LEB128 varints:
+#   n_edges, edge id deltas (ascending ids)..., then n_edges bytes of walk time / 10 s,
+#   n_bands, per band: n_polygons, per polygon: n_rings, per ring: n_points, then
+#   2 x n_points zigzag varints (x, y in 1e-5 degrees, delta-encoded; first absolute).
+CATCH_MAGIC = b"TDMC"
+CATCH_VERSION = 1
+TIME_STEP_S = 10
 # Coordinates in catchment files: integer units of 1e-5 degrees (~1 m), delta-encoded.
 COORD_SCALE = 100_000
 PERIODS = ["peak", "offpeak", "saturday", "sunday"]
@@ -238,6 +251,42 @@ def _encode_ring(coords: np.ndarray) -> list[int]:
     return d.ravel().tolist()
 
 
+def _varint(out: bytearray, n: int) -> None:
+    """Unsigned LEB128: 7 bits per byte, high bit = more bytes follow."""
+    while True:
+        b = n & 0x7F
+        n >>= 7
+        if n:
+            out.append(b | 0x80)
+        else:
+            out.append(b)
+            return
+
+
+def _zigzag(n: int) -> int:
+    """Signed -> unsigned so small negative deltas stay small (0, -1, 1, -2 -> 0, 1, 2, 3)."""
+    return (n << 1) ^ (n >> 63)
+
+
+def _pack_record(id_deltas: list[int], times: list[int], bands: list) -> bytes:
+    out = bytearray()
+    _varint(out, len(id_deltas))
+    for d in id_deltas:
+        _varint(out, d)
+    out += bytes(min(255, round(t / TIME_STEP_S)) for t in times)
+    _varint(out, len(bands))
+    for polys in bands:
+        _varint(out, len(polys))
+        for rings in polys:
+            _varint(out, len(rings))
+            for ring in rings:
+                _varint(out, len(ring) // 2)
+                for v in ring:
+                    _varint(out, _zigzag(v))
+    z = zlib.compressobj(9, zlib.DEFLATED, -15)  # raw deflate (no zlib header)
+    return z.compress(bytes(out)) + z.flush()
+
+
 def _encode(geom) -> list[list[list[int]]]:
     polys = [geom] if geom.geom_type == "Polygon" else list(getattr(geom, "geoms", []))
     return [
@@ -248,7 +297,7 @@ def _encode(geom) -> list[list[list[int]]]:
     ]
 
 
-def _catchment(cid: str) -> tuple[str, dict]:
+def _catchment(cid: str) -> tuple[str, bytes]:
     p = config.pipeline()
     max_s = p["walk"]["max_walk_min"] * 60
     band_s = p["walk"]["band_min"] * 60
@@ -310,14 +359,12 @@ def _catchment(cid: str) -> tuple[str, dict]:
             "FROM unnest(%s::bytea[]) WITH ORDINALITY AS u(g, i) ORDER BY i",
             (crs, [shapely.to_wkb(g) for g in bands]),
         ).fetchall()
-    return cid, {
-        "edges": {"id_deltas": id_deltas, "t": times},
-        "bands": [_encode(wkb.loads(bytes(r[0]))) for r in projected],
-    }
+    bands_enc = [_encode(wkb.loads(bytes(r[0]))) for r in projected]
+    return cid, _pack_record(id_deltas, times, bands_enc)
 
 
 def catchments(workers: int = 12) -> None:
-    """All stops' catchments in one file, keyed by stop id (the site loads it once)."""
+    """All stops' catchments in one binary file with an index (layout: CATCH_FILE)."""
     with psycopg.connect("") as conn:
         ids = [
             r[0]
@@ -325,15 +372,47 @@ def catchments(workers: int = 12) -> None:
                 "SELECT DISTINCT cluster_id FROM catch.reach ORDER BY 1"
             ).fetchall()
         ]
-    out: dict[str, dict] = {}
+    records: dict[str, bytes] = {}
     with Pool(workers) as pool:
-        for i, (cid, c) in enumerate(pool.imap_unordered(_catchment, ids), 1):
-            out[cid] = c
+        for i, (cid, rec) in enumerate(pool.imap_unordered(_catchment, ids), 1):
+            records[cid] = rec
             if i % 100 == 0:
                 print(f"  {i}/{len(ids)} catchments", flush=True)
+
+    # Offsets depend on the index's own length, which depends on the offsets' digits:
+    # lay out with a guess, then repeat until the index length stops changing.
+    order = sorted(records)
+    index_len = 0
+    while True:
+        start = len(CATCH_MAGIC) + 2 + 4 + index_len
+        entries, pos = {}, start
+        for cid in order:
+            entries[cid] = [pos, len(records[cid])]
+            pos += len(records[cid])
+        index = json.dumps(
+            {
+                "version": CATCH_VERSION,
+                "scale": COORD_SCALE,
+                "time_step_s": TIME_STEP_S,
+                "stops": entries,
+            },
+            separators=(",", ":"),
+        ).encode()
+        if len(index) == index_len:
+            break
+        index_len = len(index)
     CATCH_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CATCH_FILE.write_text(json.dumps(dict(sorted(out.items())), separators=(",", ":")))
-    print(f"wrote {CATCH_FILE.name}: {len(ids)} stops, {CATCH_FILE.stat().st_size / 1e6:.1f} MB")
+    with open(CATCH_FILE, "wb") as f:
+        f.write(CATCH_MAGIC + struct.pack("<HI", CATCH_VERSION, len(index)) + index)
+        for cid in order:
+            f.write(records[cid])
+    (SITE_DATA / "catchments.json").unlink(missing_ok=True)  # the old format
+    sizes = sorted(len(r) for r in records.values())
+    print(
+        f"wrote {CATCH_FILE.name}: {len(ids)} stops, {CATCH_FILE.stat().st_size / 1e6:.1f} MB "
+        f"(index {len(index) / 1e3:.0f} kB; per stop median {sizes[len(sizes) // 2] / 1e3:.0f} kB, "
+        f"max {sizes[-1] / 1e3:.0f} kB)"
+    )
 
 
 # --- basemap -----------------------------------------------------------------------
