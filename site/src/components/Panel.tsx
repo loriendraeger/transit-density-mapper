@@ -1,3 +1,4 @@
+import { useNavigate } from '@solidjs/router'
 import { For, type JSX, Show } from 'solid-js'
 
 import {
@@ -33,6 +34,7 @@ import {
   type StopColor,
   stopColor,
 } from '../state/store'
+import { pathFor } from '../state/url'
 import Settings from './Settings'
 import StopDetail from './StopDetail'
 
@@ -192,35 +194,21 @@ function Layers(): JSX.Element {
   )
 }
 
+/** The map's left panel: always the same (intro, settings, layers); a selected stop's
+ * details go in the right-hand StopDrawer instead. */
 export default function Panel(): JSX.Element {
   return (
-    <aside class="panel">
+    <aside class="panel" classList={{ 'has-drawer': selected() !== null }}>
       <Show when={loadError()}>
         <p class="error">Couldn't load the data: {loadError()}</p>
       </Show>
-      <Show
-        when={selected()}
-        fallback={
-          <>
-            <h1>Madison Metro stop catchments</h1>
-            <p class="lede">
-              Who and what is within a short walk of each bus stop, and how often the bus comes.
-              Click a stop to see its walkshed.
-            </p>
-          </>
-        }
-      >
-        {(s) => (
-          <>
-            <button class="link back" onClick={() => setSelectedId(null)}>
-              ← All stops
-            </button>
-            <StopDetail s={s()} compact />
-          </>
-        )}
-      </Show>
+      <h1>Madison Metro stop catchments</h1>
+      <p class="lede">
+        Who and what is within a short walk of each bus stop, and how often the bus comes. Hover a
+        stop to preview its walkshed; click to see its details.
+      </p>
       <Show when={data()}>
-        <details class="group" open={!selected()}>
+        <details class="group" open>
           <summary>Settings</summary>
           <Settings />
         </details>
@@ -230,5 +218,32 @@ export default function Panel(): JSX.Element {
         </details>
       </Show>
     </aside>
+  )
+}
+
+/** The selected stop, in a drawer on the map's right (a bottom sheet on phones). */
+export function StopDrawer(): JSX.Element {
+  const navigate = useNavigate()
+  return (
+    <Show when={selected()}>
+      {(s) => (
+        <aside class="panel drawer" aria-label="Selected stop">
+          <div class="detail-actions">
+            <button
+              class="link"
+              onClick={() => {
+                navigate(pathFor('stops'))
+              }}
+            >
+              Open in stop analysis →
+            </button>
+            <button class="close" aria-label="Close" onClick={() => setSelectedId(null)}>
+              ✕
+            </button>
+          </div>
+          <StopDetail s={s()} />
+        </aside>
+      )}
+    </Show>
   )
 }

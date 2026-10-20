@@ -62,7 +62,7 @@ stage and everything after it.
 | `stops.json` | Every merged stop: name, codes, routes, one-way flag, trips/hour by period × route, departures by hour × day type, banded totals per measure; plus routes, measures, settings, sources | `export.stops_json` |
 | `catchments.bin` | Per stop: spiderweb (walk-network edge ids + walk times) and blob (20 cumulative polygons), in one binary file with a JSON index of byte ranges; layout documented at `CATCH_FILE` in export.py | `export.catchments` |
 | `network.pmtiles` | `walk` (edges, feature id = `staging.osm_edges.id`), `crossings` | tippecanoe |
-| `generators.pmtiles` | `hex`, `pois`, `platforms` | tippecanoe |
+| `generators.pmtiles` | `hex`, `pois`, `platforms`, `routes` (GTFS shapes run on the representative days) | tippecanoe |
 | `basemap.pmtiles` | Protomaps extract | `pmtiles extract` |
 
 Types for the JSON files: `site/src/lib/contract.ts`. Keep it in step with export.py.
@@ -78,6 +78,6 @@ Types for the JSON files: `site/src/lib/contract.ts`. Keep it in step with expor
 | `lib/catchment.ts` | Fetches `catchments.bin`'s index, then one stop's record by HTTP range request (falls back to the whole file if the server ignores Range); inflates and decodes it; solves blob band opacities so the blob fades like the decay |
 | `map/MapView.tsx` | MapLibre map: sources, layers, effects that push state into the map |
 | `map/colors.ts` | Validated ramps and class breaks |
-| `components/` | Side panel, settings, stop detail, hourly chart (Observable Plot) |
+| `components/` | Left panel (settings, layers) and the right-hand stop drawer (`Panel.tsx`), settings, stop detail, hourly chart (Observable Plot) |
 | `stops/` | Stop analysis view and TanStack table |
 | `about/About.tsx` | Methodology page |

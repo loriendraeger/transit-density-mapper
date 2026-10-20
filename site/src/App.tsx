@@ -2,7 +2,7 @@ import { type RouteSectionProps, useNavigate } from '@solidjs/router'
 import { For, type JSX, Show } from 'solid-js'
 
 import About from './about/About'
-import Panel from './components/Panel'
+import Panel, { StopDrawer } from './components/Panel'
 import MapView from './map/MapView'
 import { type View, view } from './state/store'
 import { pathFor, UrlSync } from './state/url'
@@ -43,6 +43,7 @@ export default function App(props: RouteSectionProps): JSX.Element {
       <div class="body" classList={{ hidden: view() !== 'map' }}>
         <Panel />
         <MapView />
+        <StopDrawer />
       </div>
       <Show when={view() === 'stops'}>
         <div class="body">

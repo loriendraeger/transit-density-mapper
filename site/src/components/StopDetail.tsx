@@ -47,7 +47,7 @@ function Meter(props: { label: string; value: number; detail: string }): JSX.Ele
   )
 }
 
-export default function StopDetail(props: { s: Scored; compact?: boolean }): JSX.Element {
+export default function StopDetail(props: { s: Scored }): JSX.Element {
   const [day, setDay] = createSignal<DayType>('weekday')
   const routes = createMemo(() => new Map((data()?.routes ?? []).map((r) => [r.id, r])))
   function stop(): Scored['stop'] {
@@ -159,39 +159,37 @@ export default function StopDetail(props: { s: Scored; compact?: boolean }): JSX
       <HourlyChart counts={stop().hourly[day()]} />
       <p class="hint">All routes, buses you can board, on {data()?.rep_dates[day()] ?? ''}.</p>
 
-      <Show when={!props.compact}>
-        <h2>Trips per hour by route</h2>
-        <table class="mini">
-          <thead>
-            <tr>
-              <th>Route</th>
-              <For each={PERIODS}>
-                {(p) => <th class="num">{PERIOD_LABELS[p].replace('Weekday ', '')}</th>}
-              </For>
-            </tr>
-          </thead>
-          <tbody>
-            <For each={routeRows()}>
-              {(r) => (
-                <tr>
-                  <td>
-                    <RouteChip id={r.id} route={routes().get(r.id)} />
-                  </td>
-                  <For each={PERIODS}>
-                    {(p) => <td class="num">{r.freq[p] ? fmt(r.freq[p], 1) : '–'}</td>}
-                  </For>
-                </tr>
-              )}
+      <h2>Trips per hour by route</h2>
+      <table class="mini">
+        <thead>
+          <tr>
+            <th>Route</th>
+            <For each={PERIODS}>
+              {(p) => <th class="num">{PERIOD_LABELS[p].replace('Weekday ', '')}</th>}
             </For>
-            <tr class="total">
-              <td>All{stop().one_way ? ` ×${String(oneWayFactor())}` : ''}</td>
-              <For each={PERIODS}>
-                {(p) => <td class="num">{fmt(periodFreq(stop(), p, oneWayFactor()), 1)}</td>}
-              </For>
-            </tr>
-          </tbody>
-        </table>
-      </Show>
+          </tr>
+        </thead>
+        <tbody>
+          <For each={routeRows()}>
+            {(r) => (
+              <tr>
+                <td>
+                  <RouteChip id={r.id} route={routes().get(r.id)} />
+                </td>
+                <For each={PERIODS}>
+                  {(p) => <td class="num">{r.freq[p] ? fmt(r.freq[p], 1) : '–'}</td>}
+                </For>
+              </tr>
+            )}
+          </For>
+          <tr class="total">
+            <td>All{stop().one_way ? ` ×${String(oneWayFactor())}` : ''}</td>
+            <For each={PERIODS}>
+              {(p) => <td class="num">{fmt(periodFreq(stop(), p, oneWayFactor()), 1)}</td>}
+            </For>
+          </tr>
+        </tbody>
+      </table>
     </article>
   )
 }

@@ -16,7 +16,17 @@ import {
 // once a bundler moves the module. Let Vite bundle the worker and pass its URL instead.
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { PMTiles, Protocol } from 'pmtiles'
-import { createEffect, getOwner, type JSX, on, onCleanup, onMount, runWithOwner } from 'solid-js'
+import {
+  createEffect,
+  createSignal,
+  getOwner,
+  type JSX,
+  on,
+  onCleanup,
+  onMount,
+  runWithOwner,
+  untrack,
+} from 'solid-js'
 
 import { blobFeatures, type Catchment, loadCatchment } from '../lib/catchment'
 import {
@@ -34,6 +44,7 @@ import {
   blobOpacity,
   data,
   decay,
+  DEFAULT_WALK_MIN,
   density,
   densityOpacity,
   flyRequest,
@@ -75,9 +86,13 @@ interface StopProps {
 }
 
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
+const HOVER_DELAY_MS = 150
+const HOVER_OPACITY = 0.4
 
 export default function MapView(): JSX.Element {
   let container: HTMLDivElement | undefined
+  /** The stop under the mouse (for the hover preview). */
+  const [hoverId, setHoverId] = createSignal<string | null>(null)
   const mode = MODE
 
   onMount(() => {
@@ -117,6 +132,7 @@ export default function MapView(): JSX.Element {
           },
           stops: { type: 'geojson', data: EMPTY, promoteId: 'id' },
           blob: { type: 'geojson', data: EMPTY },
+          'blob-hover': { type: 'geojson', data: EMPTY },
         },
         layers: layers('protomaps', namedFlavor(flavor), { lang: 'en' }),
       },
@@ -174,6 +190,33 @@ export default function MapView(): JSX.Element {
       },
       beforeLabels,
     )
+    // Hover preview: another stop's blob, fainter, so it reads as a preview.
+    m.addLayer(
+      {
+        id: 'blob-hover',
+        type: 'fill',
+        source: 'blob-hover',
+        paint: {
+          'fill-color': CATCHMENT[mode],
+          'fill-opacity': ['*', HOVER_OPACITY, ['get', 'alpha']],
+          'fill-antialias': false,
+        },
+      },
+      beforeLabels,
+    )
+    // ...with a dashed outline at the walk-time limit, so it stays distinct from the
+    // selected stop's blob where they overlap (filter set with the walk time below).
+    m.addLayer({
+      id: 'blob-hover-outline',
+      type: 'line',
+      source: 'blob-hover',
+      filter: ['==', ['get', 'band'], DEFAULT_WALK_MIN],
+      paint: {
+        'line-color': mode === 'dark' ? '#f0efec' : '#2c2c2a',
+        'line-width': 1.5,
+        'line-dasharray': [3, 2],
+      },
+    })
     // Route lines in Metro's own route colors (identity, as on Metro's maps); context
     // only, under everything interactive.
     m.addLayer({
@@ -346,6 +389,9 @@ export default function MapView(): JSX.Element {
       }
       m.getCanvas().style.cursor = 'pointer'
       const p = f.properties as StopProps
+      if (untrack(hoverId) !== p.id) {
+        setHoverId(p.id)
+      }
       const geom = f.geometry as Point
       popup
         .setLngLat(geom.coordinates as [number, number])
@@ -358,6 +404,7 @@ export default function MapView(): JSX.Element {
     m.on('mouseleave', 'stops', () => {
       m.getCanvas().style.cursor = ''
       popup.remove()
+      setHoverId(null)
     })
     m.on('click', (e) => {
       const hit = m.queryRenderedFeatures(e.point, { layers: ['stops'] }).at(0)
@@ -519,6 +566,41 @@ export default function MapView(): JSX.Element {
         paintCatchment()
       }),
     )
+
+    // Hover preview: after a short pause on a stop (so sweeping across stops doesn't
+    // fetch them all), show its blob faintly. Not for the selected stop.
+    const hoverSrc = m.getSource<GeoJSONSource>('blob-hover')
+    let hoverTimer: ReturnType<typeof setTimeout> | undefined
+    createEffect(
+      on([hoverId, selectedId, walkMin, decay, blobOpacity], ([id, sel]) => {
+        clearTimeout(hoverTimer)
+        void hoverSrc?.setData(EMPTY)
+        m.setFilter('blob-hover-outline', ['==', ['get', 'band'], untrack(walkMin)])
+        const d = data()
+        if (id === null || id === sel || !d) {
+          return
+        }
+        hoverTimer = setTimeout(() => {
+          loadCatchment(id)
+            .then((c) => {
+              untrack(() => {
+                if (hoverId() !== id) {
+                  return
+                }
+                const n = d.settings.max_walk_min / d.settings.band_min
+                const w = bandWeights(decay(), walkMin(), n, d.settings.band_min)
+                void hoverSrc?.setData(blobFeatures(c, w, blobOpacity()))
+              })
+            })
+            .catch((e: unknown) => {
+              console.error(e)
+            })
+        }, HOVER_DELAY_MS)
+      }),
+    )
+    onCleanup(() => {
+      clearTimeout(hoverTimer)
+    })
 
     // Fly to a stop on request (table "show on map", or a shared link): head there
     // right away, then frame its walkshed at the current limit once that's loaded.

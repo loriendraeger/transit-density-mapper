@@ -229,10 +229,15 @@ exports in EPSG:4326.
 
 ## Frontend
 
-- **Map tab** (`site/src/map/MapView.tsx`): density hexes (blue), stops as circles sized by
-  √frequency and colored by score or frequency (orange ramp), selected stop's blob +
-  spiderweb (violet; spiderweb colored per edge with MapLibre feature-state), optional
-  destinations and arterial-crossing layers. Side panel: stop detail, settings, layers.
+- **Map tab** (`site/src/map/MapView.tsx`): density hexes (blue), route lines (GTFS shapes in
+  Metro's route colors), stops as circles sized by √frequency and colored by score or
+  frequency (orange ramp), an outer ring on one-directional stops (◎, trips counted ×2),
+  the selected stop's blob + spiderweb (violet; spiderweb colored per edge with
+  MapLibre feature-state), a hover preview of another stop's blob (fainter, dashed
+  outline at the walk limit), optional destinations and arterial-crossing layers.
+- **Layout (decided 2026-10-19)**: the left panel never changes (intro, settings,
+  layers); a selected stop opens in a **right-hand drawer** (bottom sheet on phones,
+  replacing the panel until closed).
 - **Stop analysis tab** (`site/src/stops/`): sortable, filterable TanStack table, settings
   sidebar, detail panel with "Show walkshed on map".
 - **About tab**: methodology and sources.
