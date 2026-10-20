@@ -24,6 +24,7 @@ import {
   HEX_LAYER,
   PLATFORMS_LAYER,
   POIS_LAYER,
+  ROUTES_LAYER,
   WALK_LAYER,
 } from '../lib/contract'
 import { dataUrl } from '../lib/data'
@@ -36,11 +37,13 @@ import {
   density,
   densityOpacity,
   flyRequest,
+  oneWayFactor,
   scored,
   selectedId,
   setSelectedId,
   showCrossings,
   showPois,
+  showRoutes,
   showSpiderweb,
   stopColor,
   walkMin,
@@ -68,6 +71,7 @@ interface StopProps {
   score: number
   freq: number
   r: number
+  one_way: boolean
 }
 
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
@@ -170,6 +174,25 @@ export default function MapView(): JSX.Element {
       },
       beforeLabels,
     )
+    // Route lines in Metro's own route colors (identity, as on Metro's maps); context
+    // only, under everything interactive.
+    m.addLayer({
+      id: 'routes',
+      type: 'line',
+      source: 'generators',
+      'source-layer': ROUTES_LAYER,
+      layout: {
+        'line-cap': 'round',
+        'line-join': 'round',
+        // BRT (lower sort order) on top.
+        'line-sort-key': ['-', 1000, ['get', 'sort_order']],
+      },
+      paint: {
+        'line-color': ['get', 'color'],
+        'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1, 14, 2.5, 17, 4],
+        'line-opacity': 0.75,
+      },
+    })
     m.addLayer({
       id: 'spiderweb',
       type: 'line',
@@ -234,6 +257,31 @@ export default function MapView(): JSX.Element {
       },
     })
     const r: ExpressionSpecification = ['get', 'r']
+    // One-directional stops (trips counted x one-way factor) get an outer ring: a
+    // "double" circle for a doubled count. Same zoom scaling as the stop, a few px out.
+    m.addLayer({
+      id: 'stops-oneway',
+      type: 'circle',
+      source: 'stops',
+      filter: ['==', ['get', 'one_way'], true],
+      minzoom: 12,
+      paint: {
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          12,
+          ['+', ['*', 0.7, r], 2.5],
+          14,
+          ['+', r, 3.5],
+          17,
+          ['+', ['*', 1.6, r], 4.5],
+        ],
+        'circle-color': 'rgba(0, 0, 0, 0)',
+        'circle-stroke-color': mode === 'dark' ? '#f0efec' : '#52514e',
+        'circle-stroke-width': 1.25,
+      },
+    })
     m.addLayer({
       id: 'stops',
       type: 'circle',
@@ -302,7 +350,8 @@ export default function MapView(): JSX.Element {
       popup
         .setLngLat(geom.coordinates as [number, number])
         .setHTML(
-          `<strong>${escapeHtml(p.name)}</strong><br>Score ${fmt(p.score, 0)} · ${fmt(p.freq, 1)} trips/h`,
+          `<strong>${escapeHtml(p.name)}</strong><br>Score ${fmt(p.score, 0)} · ${fmt(p.freq, 1)} trips/h` +
+            (p.one_way ? `<br>◎ One direction only: trips counted ×${String(oneWayFactor())}` : ''),
         )
         .addTo(m)
     })
@@ -356,6 +405,7 @@ export default function MapView(): JSX.Element {
           freq: s.freq,
           // Radius grows with the square root of frequency, so area tracks trips/hour.
           r: 3 + 1.4 * Math.sqrt(s.freq),
+          one_way: s.stop.one_way,
         } satisfies StopProps,
       }))
       // Busiest stops draw last (on top).
@@ -412,6 +462,9 @@ export default function MapView(): JSX.Element {
     })
     createEffect(() => {
       m.setLayoutProperty('crossings', 'visibility', showCrossings() ? 'visible' : 'none')
+    })
+    createEffect(() => {
+      m.setLayoutProperty('routes', 'visibility', showRoutes() ? 'visible' : 'none')
     })
 
     // Catchment of the selected stop: load, then paint the blob and the spiderweb.

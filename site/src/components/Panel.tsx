@@ -15,6 +15,7 @@ import {
   density,
   densityOpacity,
   loadError,
+  oneWayFactor,
   selected,
   setBlobOpacity,
   setDensity,
@@ -22,10 +23,12 @@ import {
   setSelectedId,
   setShowCrossings,
   setShowPois,
+  setShowRoutes,
   setShowSpiderweb,
   setStopColor,
   showCrossings,
   showPois,
+  showRoutes,
   showSpiderweb,
   type StopColor,
   stopColor,
@@ -109,6 +112,15 @@ function Layers(): JSX.Element {
             : 'Trips per hour. Circle size: trips per hour.'
         }
       />
+      <ul class="key">
+        <li>
+          <svg class="oneway-key" viewBox="0 0 20 20" aria-hidden="true">
+            <circle cx="10" cy="10" r="5" class="dot-fill" />
+            <circle cx="10" cy="10" r="8.5" class="ring" />
+          </svg>
+          One direction only: trips counted ×{oneWayFactor()}
+        </li>
+      </ul>
       <label class="field">
         <span>Density layer</span>
         <select
@@ -155,6 +167,7 @@ function Layers(): JSX.Element {
           onInput={(e) => setBlobOpacity(Number(e.currentTarget.value))}
         />
       </label>
+      <Check label="Route lines" checked={showRoutes()} onChange={setShowRoutes} />
       <Check label="Walking-path spiderweb" checked={showSpiderweb()} onChange={setShowSpiderweb} />
       <Check label="Destinations (zoom in)" checked={showPois()} onChange={setShowPois} />
       <Check

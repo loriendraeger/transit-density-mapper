@@ -110,6 +110,6 @@ minzoom = 12
 maxzoom = 15
 
 [tiles.files.generators]
-layers = ["hex", "pois", "platforms"]
+layers = ["hex", "pois", "platforms", "routes"]
 minzoom = 10
 maxzoom = 15

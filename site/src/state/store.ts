@@ -103,6 +103,7 @@ export const [densityOpacity, setDensityOpacity] = createSignal(0.45)
 export const [showPois, setShowPois] = createSignal(false)
 export const [showSpiderweb, setShowSpiderweb] = createSignal(true)
 export const [showCrossings, setShowCrossings] = createSignal(false)
+export const [showRoutes, setShowRoutes] = createSignal(true)
 export const [blobOpacity, setBlobOpacity] = createSignal(0.5)
 /** What stop circles are colored by. */
 export type StopColor = 'score' | 'freq'

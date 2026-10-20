@@ -114,7 +114,7 @@ export default function StopDetail(props: { s: Scored; compact?: boolean }): JSX
       </div>
       <Show when={stop().one_way}>
         <p class="hint">
-          ↻ One-directional stop: buses here all head the same way, so its trips count ×
+          ◎ One-directional stop: buses here all head the same way, so its trips count ×
           {oneWayFactor()}.
         </p>
       </Show>

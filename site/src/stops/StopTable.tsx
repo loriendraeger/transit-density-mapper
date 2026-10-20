@@ -84,7 +84,7 @@ export default function StopTable(props: {
       id: 'freq',
       header: 'Trips/h',
       sortFn: 'basic',
-      cell: (c) => fmt(c.getValue(), 1) + (c.row.original.stop.one_way ? ' ↻' : ''),
+      cell: (c) => fmt(c.getValue(), 1) + (c.row.original.stop.one_way ? ' ◎' : ''),
     }),
   ])
 

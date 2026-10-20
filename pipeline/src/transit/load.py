@@ -29,7 +29,15 @@ COMMON = [
     "PG_USE_COPY",
     "YES",
 ]
-GTFS_FILES = ["stops", "routes", "trips", "stop_times", "calendar", "calendar_dates"]
+GTFS_FILES = [
+    "stops",
+    "routes",
+    "trips",
+    "stop_times",
+    "calendar",
+    "calendar_dates",
+    "shapes",
+]
 
 
 def run(cmd: list[str]) -> None:

@@ -29,8 +29,10 @@ SELECT id, round(pop)::int AS pop, round(jobs)::int AS jobs,
        ST_Transform(geom, 4326)::geometry(Polygon, 4326) AS geom
 FROM gen.hex;
 
+-- osm_id, not id: tippecanoe uses `id` as the numeric feature id, and these are text.
+DROP VIEW IF EXISTS export.pois;
 CREATE OR REPLACE VIEW export.pois AS
-SELECT id, name, category, kind, round(weight::numeric, 2)::float8 AS weight,
+SELECT id AS osm_id, name, category, kind, round(weight::numeric, 2)::float8 AS weight,
        ST_Transform(ST_PointOnSurface(geom), 4326)::geometry(Point, 4326) AS geom
 FROM gen.pois;
 
@@ -38,3 +40,10 @@ CREATE OR REPLACE VIEW export.platforms AS
 SELECT s.stop_id, s.stop_code AS code, s.stop_name AS name, pc.cluster_id,
        ST_Transform(s.geom, 4326)::geometry(Point, 4326) AS geom
 FROM staging.stops s JOIN transit.platform_cluster pc USING (stop_id);
+
+-- Route lines (GTFS shapes), drawn under the stops in Metro's route colors.
+CREATE OR REPLACE VIEW export.routes AS
+SELECT row_number() OVER (ORDER BY sort_order, route_id, shape_id)::int AS id,
+       route_id, name, color, coalesce(sort_order, 999) AS sort_order,
+       ST_Transform(ST_Simplify(geom, 3), 4326)::geometry(LineString, 4326) AS geom
+FROM transit.route_lines;

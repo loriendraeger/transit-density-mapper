@@ -347,6 +347,19 @@ details.sub > summary {
   align-items: center;
   gap: 6px;
 }
+.oneway-key {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.oneway-key .dot-fill {
+  fill: var(--score);
+}
+.oneway-key .ring {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1.25;
+}
 .dot {
   width: 10px;
   height: 10px;

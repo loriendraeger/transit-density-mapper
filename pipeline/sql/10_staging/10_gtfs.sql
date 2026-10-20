@@ -48,6 +48,18 @@ FROM raw.gtfs_stop_times;
 CREATE INDEX ON staging.stop_times (trip_id, stop_sequence);
 CREATE INDEX ON staging.stop_times (stop_id);
 
+-- Route shapes as lines (for drawing routes on the map).
+DROP TABLE IF EXISTS staging.shapes;
+CREATE TABLE staging.shapes AS
+SELECT shape_id,
+       ST_Transform(ST_MakeLine(ST_SetSRID(ST_MakePoint(shape_pt_lon::float8,
+                                                        shape_pt_lat::float8), 4326)
+                                ORDER BY shape_pt_sequence::int), :crs)
+           ::geometry(LineString, :crs) AS geom
+FROM raw.gtfs_shapes
+GROUP BY shape_id;
+ALTER TABLE staging.shapes ADD PRIMARY KEY (shape_id);
+
 DROP TABLE IF EXISTS staging.calendar;
 CREATE TABLE staging.calendar AS
 SELECT service_id, monday::int = 1 AS mon, tuesday::int = 1 AS tue, wednesday::int = 1 AS wed,
