@@ -24,7 +24,8 @@ CREATE TABLE catch.bands AS
 SELECT cluster_id,
        greatest(ceil(t / 60 / :band_min)::int, 1) AS band,
        CASE kind WHEN 'poi' THEN category ELSE kind END AS measure,
-       sum(value) AS value,
+       -- numeric: exact, so the total doesn't depend on the (parallel) summing order.
+       sum(value::numeric)::float8 AS value,
        count(*) AS n
 FROM catch.gen_time
 GROUP BY 1, 2, 3;

@@ -308,6 +308,7 @@ def _catchment(cid: str) -> tuple[str, bytes]:
             SELECT e.osm_edge, ST_AsBinary(e.geom), et.ts, et.tt, e.cost
             FROM catch.edge_time et JOIN net.edges e ON e.id = et.edge_id
             WHERE et.cluster_id = %s AND e.kind <> 'cross'
+            ORDER BY e.id  -- the polygon union's float results depend on input order
             """,
             (cid,),
         ).fetchall()

@@ -14,8 +14,8 @@ WITH grid AS (
                         ST_Transform(ST_MakeEnvelope(:bbox_4326, 4326), :crs)) h
 )
 SELECT row_number() OVER ()::int AS id, g.geom,
-       coalesce((SELECT sum(pop) FROM gen.population p WHERE ST_Intersects(g.geom, p.geom)), 0) AS pop,
-       coalesce((SELECT sum(jobs) FROM gen.jobs j WHERE ST_Intersects(g.geom, j.geom)), 0) AS jobs,
+       coalesce((SELECT sum(pop::numeric) FROM gen.population p WHERE ST_Intersects(g.geom, p.geom)), 0)::float8 AS pop,
+       coalesce((SELECT sum(jobs::numeric) FROM gen.jobs j WHERE ST_Intersects(g.geom, j.geom)), 0)::float8 AS jobs,
        0::float8 AS dest
 FROM grid g;
 CREATE INDEX ON gen.hex USING gist (geom);
@@ -28,7 +28,7 @@ SELECT h.id, p.category, p.weight * ST_Area(ST_Intersection(h.geom, p.geom)) / p
 FROM gen.pois p JOIN gen.hex h ON ST_Intersects(h.geom, p.geom)
 WHERE p.area_m2 > 0;
 UPDATE gen.hex h SET dest = d.w
-FROM (SELECT hex_id, sum(weight) AS w FROM gen.poi_hex GROUP BY hex_id) d
+FROM (SELECT hex_id, sum(weight::numeric)::float8 AS w FROM gen.poi_hex GROUP BY hex_id) d
 WHERE d.hex_id = h.id;
 DELETE FROM gen.hex WHERE pop = 0 AND jobs = 0 AND dest < 0.01;
 ALTER TABLE gen.hex ADD COLUMN area_km2 float8;
@@ -42,7 +42,7 @@ DROP TABLE IF EXISTS gen.hex_dest CASCADE;
 SELECT format(
     'CREATE TABLE gen.hex_dest AS SELECT h.id AS hex_id, %s FROM gen.hex h '
     'LEFT JOIN gen.poi_hex p ON p.hex_id = h.id GROUP BY h.id, h.area_km2',
-    string_agg(format('nullif(round(coalesce(sum(p.weight) FILTER (WHERE p.category = %L), 0) '
+    string_agg(format('nullif(round(coalesce(sum(p.weight::numeric) FILTER (WHERE p.category = %L), 0) '
                       '/ h.area_km2)::int, 0) AS %I', category, 'd_' || category),
                ', ' ORDER BY category))
 FROM (SELECT DISTINCT category FROM gen.pois) c

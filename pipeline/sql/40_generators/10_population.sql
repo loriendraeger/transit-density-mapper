@@ -27,7 +27,7 @@ est AS (
     JOIN sco p ON p.id = st.id
     LEFT JOIN LATERAL (
         -- Multi-unit residential buildings on the parcel: floor area / m2 per unit.
-        SELECT sum(rb.area_m2 * coalesce(rb.levels, :default_levels) / :m2_per_unit)
+        SELECT sum((rb.area_m2 * coalesce(rb.levels, :default_levels) / :m2_per_unit)::numeric)::float8
                AS multi_units
         FROM staging.res_buildings rb
         WHERE rb.building IN ('apartments', 'dormitory', 'residential', 'terrace')
