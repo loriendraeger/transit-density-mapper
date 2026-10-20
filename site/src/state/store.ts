@@ -25,7 +25,10 @@ export const [weights, setWeights] = createSignal<Weights>({
   categories: {},
 })
 export const [period, setPeriod] = createSignal<Period | 'aggregate'>('aggregate')
-export const [oneWayFactor, setOneWayFactor] = createSignal(2)
+/** Fixed by the pipeline (pipeline.toml one_way_factor), not a user setting. */
+export function oneWayFactor(): number {
+  return data()?.settings.one_way_factor ?? 2
+}
 export const [periodWeights, setPeriodWeights] = createSignal<Record<Period, number>>({
   peak: 30,
   offpeak: 50,
@@ -58,7 +61,6 @@ export function defaultPeriodWeights(d: StopsFile): Record<Period, number> {
 export function initFromData(d: StopsFile): void {
   setWeights(defaultWeights(d))
   setPeriodWeights(defaultPeriodWeights(d))
-  setOneWayFactor(d.settings.one_way_factor)
   setData(d)
 }
 

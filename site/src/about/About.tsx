@@ -47,7 +47,7 @@ export default function About(): JSX.Element {
         Trips per hour = departures in the period ÷ its hours. The weighted week averages the
         periods by the hours each stands for. One-way pairs (Johnson/Gorham) and the ends of lines
         only see buses heading one way, while the opposite direction is a block or so away; these
-        one-directional stops count their buses × the one-way factor (default 2). A stop is
+        one-directional stops count their buses ×{data()?.settings.one_way_factor ?? 2}. A stop is
         one-directional when all its departures head within{' '}
         {data()?.settings.one_way_spread_deg ?? 100}° of each other.
       </p>

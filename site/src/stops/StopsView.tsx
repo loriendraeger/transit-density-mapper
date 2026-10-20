@@ -56,7 +56,7 @@ export default function StopsView(): JSX.Element {
         />
         <p class="hint">
           Population, jobs and destinations are 0–100 against the best stop. ↻ = one-directional
-          stop (frequency × the one-way factor).
+          stop (frequency ×{data()?.settings.one_way_factor ?? 2}).
         </p>
       </main>
       <Show when={selected()}>

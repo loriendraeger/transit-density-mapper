@@ -59,12 +59,12 @@ A **for-fun learning project**. The owner is interested in GIS and transit.
 | Study area (2026-10-19) | **Madison Metro service area**: every stop in the GTFS feed plus ~3 km (`pipeline.toml [study_area]`). Spans Madison, Middleton, Fitchburg, Verona, Monona, Sun Prairie and others. |
 | Stack (2026-10-19) | **Reuse `../public-private-shore`**, plus **pgRouting** for the walk network. |
 | Stop merging (2026-10-19) | GTFS `parent_station` turned out to cover only the 19 BRT stations, so: BRT platforms merge with their station, and everything else merges by **complete-linkage clustering** with a **110 m** maximum diameter (`stops.py`). `config/stop_merge_overrides.csv` forces merges/splits. Merged location = centroid of the platforms. |
-| Service periods (2026-10-19) | **Weekday peak** (6–9, 15–18), **weekday off-peak** (9–15, 18–22), **Saturday** (8–20), **Sunday/holiday** (8–20), and a **weighted week** (default weights = hours per week each period stands for: 30/50/12/12). Weekday = Mon–Thu with UW in session (most common pattern). |
+| Service periods (2026-10-19) | **Weekday peak** (6–9, 15–18), **weekday off-peak** (9–15, 18–22), **Saturday** (8–20), **Sunday/holiday** (8–20), and a **weighted week** (default weights = hours per week each period stands for: 30/50/12/12). Weekday = Mon–Thu with UW in session (most common pattern). Friday is its own GTFS service but differs only by 6 late-night campus trips (routes 80/81/82, after 10 pm), outside every period window. |
 | Merged-stop frequency (2026-10-19) | **Combine all routes**, counting only departures you can board. Per-route numbers are shown too. |
-| One-way stops (2026-10-19) | Stops whose departures all head one way (one side of a couplet like Gorham/Johnson, line termini, one-side stops whose opposite stop is > 110 m away) count their frequency **× `one_way_factor` (default 2, tunable on the site)**. Test: every departure's bearing to its next stop within 100°. |
-| Crossing penalty (2026-10-19) | **Barrier-style**, implemented as the **corner model** (see [Walk network](#walk-network)): trunk/primary/secondary roads can only be crossed at signals or marked crossings; unmarked crossings of them are forbidden. Waits per class in `config/road_classes.csv`. |
-| Population (2026-10-19) | **2020 Census blocks, split among parcels by dwelling units** (dasymetric). Madison parcels have `TotalDwellingUnits`; elsewhere units are estimated. |
-| Jobs (2026-10-19) | **LEHD LODES 8 WAC, 2023**, at a point inside each block. |
+| One-way stops (2026-10-19) | Stops whose departures all head one way (one side of a couplet like Gorham/Johnson, line termini, one-side stops whose opposite stop is > 110 m away) count their frequency **× `one_way_factor` (2, set in `pipeline.toml`; owner 2026-10-19: users can't change it)**. Test: every departure's bearing to its next stop within 100°. |
+| Crossing penalty (2026-10-19, confirmed after review) | **Barrier-style**, implemented as the **corner model** (see [Walk network](#walk-network)): trunk/primary/secondary roads can only be crossed at signals or marked crossings, costing the expected wait plus the walk across. **Unmarked crossings of them stay forbidden** (owner kept this over Wisconsin's every-intersection-is-a-crosswalk rule). Waits per class in `config/road_classes.csv`. |
+| Population (2026-10-19) | **2020 Census blocks, split among parcels by dwelling units** (dasymetric). Madison parcels have `TotalDwellingUnits`; elsewhere units are estimated. Not capturing growth since 2020 is an accepted limitation. |
+| Jobs (2026-10-19) | **LEHD LODES 8 WAC, 2023**, at a point inside each block (lumping big suburban blocks is accepted). |
 | Destinations (2026-10-19) | **OSM POIs** with per-kind weights (`config/poi_categories.csv`); the site multiplies whole categories. |
 | Score (2026-10-19) | Each component (population, jobs, destinations) is summed with the **decay weight** of its walk time, **normalized 0–100 against the best stop at the same settings**, then weight-averaged. Decays: none, linear, exponential (half-life), S-curve (midpoint). Default: exponential, 8 min half-life, 10 min limit. |
 | Blob rendering (2026-10-19) | Cumulative 1-minute bands stacked with per-band opacities solved so the **blob's opacity at time t follows the score's decay curve**. |
@@ -179,7 +179,7 @@ exports in EPSG:4326.
 - Departures = stop_times with pickup allowed and a next stop. Counted per merged stop ×
   route × day type × hour; period frequency = departures in the period's windows ÷ the
   windows' hours.
-- One-way factor applied in the browser so it's tunable (see Decisions).
+- One-way factor: fixed in `pipeline.toml`, shipped in `stops.json` settings, applied in the browser.
 
 ### Walk network
 
@@ -275,13 +275,6 @@ Playwright with the system Chrome and `--use-gl=angle --use-angle=metal`.
   per-stop files, or computing blobs in the browser from the spiderweb.
 - Weekday peak windows and period weights are first guesses; check them against Metro's
   actual service span.
-- Jobs: is spreading LODES jobs onto non-residential parcels worth it? (Big suburban
-  blocks put all their jobs at one point.)
-- Population reflects 2020; Madison has `TotalDwellingUnits` for today. Use current
-  units × persons per unit to capture growth since 2020?
 - Tertiary roads are not barriers. Some (e.g. busy collectors) might deserve it;
   `road_classes.csv` can flip them.
-- Unmarked crossings of arterials are forbidden. Wisconsin law treats every
-  intersection as a crosswalk; if walksheds look too small along arterials, give
-  `wait_unmarked_s` a value instead.
 - Destination weights are first guesses.

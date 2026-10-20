@@ -13,13 +13,11 @@ import {
   type Density,
   density,
   flyTo,
-  oneWayFactor,
   period,
   periodWeights,
   selectedId,
   setDecay,
   setDensity,
-  setOneWayFactor,
   setPeriod,
   setPeriodWeights,
   setSelectedId,
@@ -40,7 +38,6 @@ import {
 //   cw=food:2,parks:0         destination category weights that differ from 1
 //   period=peak|offpeak|saturday|sunday   (default: weighted aggregate)
 //   pw=30,50,12,12            aggregate's period weights (peak, offpeak, sat, sun)
-//   owf=1.5                   one-way factor
 //   density=jobs|none         density layer (default: population)
 
 type Params = Record<string, string | undefined>
@@ -88,7 +85,6 @@ function applyParams(p: Params): void {
     pw[k] = num(pws[i], 0, 1000) ?? pw[k]
   })
   setPeriodWeights(pw)
-  setOneWayFactor(num(p.owf, 1, 3) ?? d.settings.one_way_factor)
   setDensity(
     (['pop', 'jobs', 'none'] as Density[]).includes(p.density as Density)
       ? (p.density as Density)
@@ -139,7 +135,6 @@ export function currentParams(): Params {
     cw: cw.length ? cw.join(',') : undefined,
     period: period() === 'aggregate' ? undefined : period(),
     pw: pwChanged ? PERIODS.map((k) => String(pw[k])).join(',') : undefined,
-    owf: oneWayFactor() === d.settings.one_way_factor ? undefined : String(oneWayFactor()),
     density: density() === 'pop' ? undefined : density(),
   }
 }

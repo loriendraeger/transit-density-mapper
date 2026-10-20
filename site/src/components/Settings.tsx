@@ -9,7 +9,6 @@ import {
   period,
   periodWeights,
   setDecay,
-  setOneWayFactor,
   setPeriod,
   setPeriodWeights,
   setWalkMin,
@@ -211,18 +210,9 @@ export default function Settings(): JSX.Element {
           </p>
         )}
       </Show>
-      <Slider
-        label="One-way stop factor"
-        value={oneWayFactor()}
-        min={1}
-        max={3}
-        step={0.25}
-        onInput={setOneWayFactor}
-        format={(v) => `×${String(v)}`}
-      />
       <p class="hint">
         Stops served in one direction only (one side of a one-way pair like Johnson/Gorham, or the
-        end of a line) count their buses this many times, since the return trip is nearby.
+        end of a line) count their buses ×{oneWayFactor()}, since the return trip is nearby.
       </p>
       <details class="sub">
         <summary>Weighted-week period weights</summary>
