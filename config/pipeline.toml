@@ -86,7 +86,7 @@ poi_nested_categories = ["parks", "gardens"]
 # Parks and gardens scale their weight by sqrt(area in hectares), clamped to this range,
 # so a big park counts more than a pocket park.
 park_scale_min = 0.5
-park_scale_max = 4
+park_scale_max = 2
 # Polygon destinations are reachable at their nearest point: sample the outline every
 # poi_outline_step_m (plus an interior point) and use the quickest sample.
 poi_outline_step_m = 75
