@@ -40,29 +40,6 @@ FROM raw.osm_nodes;
 ALTER TABLE staging.osm_nodes ADD PRIMARY KEY (id);
 CREATE INDEX ON staging.osm_nodes USING gist (geom);
 
--- POIs: the first matching rule in config/poi_categories.csv wins (value * = any).
-DROP TABLE IF EXISTS staging.poi_rules;
-CREATE TABLE staging.poi_rules (key text, value text, category text, weight float8, notes text);
-\copy staging.poi_rules (key, value, category, weight, notes) FROM 'config/poi_categories.csv' CSV HEADER
-ALTER TABLE staging.poi_rules ADD COLUMN priority serial;
-
-DROP TABLE IF EXISTS staging.pois CASCADE;
-CREATE TABLE staging.pois AS
-SELECT DISTINCT ON (p.osm_type, p.osm_id)
-    p.osm_type || p.osm_id AS id,
-    p.tags->>'name' AS name,
-    r.category, r.key, r.value AS kind, r.weight,
-    p.tags->>'access' AS access,
-    ST_Transform(p.geom, :crs) AS geom
-FROM raw.osm_pois p
-JOIN staging.poi_rules r
-  ON p.tags ? r.key AND (r.value = '*' OR p.tags->>r.key = r.value)
-ORDER BY p.osm_type, p.osm_id, r.priority;
--- Private facilities aren't destinations (private pools, members-only gyms...).
-DELETE FROM staging.pois WHERE access IN ('private', 'no') OR category = 'ignore';
-ALTER TABLE staging.pois ADD PRIMARY KEY (id);
-CREATE INDEX ON staging.pois USING gist (geom);
-
 -- Residential buildings, for estimating dwelling units outside Madison.
 DROP TABLE IF EXISTS staging.res_buildings;
 CREATE TABLE staging.res_buildings AS

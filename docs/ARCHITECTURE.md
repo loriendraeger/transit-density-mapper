@@ -5,24 +5,34 @@ methods, see [AGENTS.md](../AGENTS.md).
 
 ## Pipeline
 
-Every step runs inside the `pipeline` container (`docker compose run --rm pipeline uv run
---project pipeline transit <command>`); the Makefile wraps them with stamp files in
-`data/build/.stamps/`, so editing a stage's SQL (or anything in `config/`) reruns that
-stage and everything after it.
+Every step runs in one long-lived `pipeline` container (`make tools-up` starts it; the
+Makefile runs `docker compose exec -T pipeline uv run --project pipeline transit
+<command>`). Stamp files in `data/build/.stamps/` track the database stages. Each stamp
+depends on its stage's SQL and Python, the stamps before it, and only the config it
+reads: whole config files, or content stamps from `pipeline/deps.sh` in
+`data/build/deps/` (one per `pipeline.toml` section, plus the two config columns the
+loader reads), which are rewritten only when their content changes. A no-op `make` takes
+about a second; changing a destination weight reruns only generators -> catchments ->
+`stops.json` and `generators.pmtiles` (~20 s); a full rebuild including the load is
+under 3 minutes.
 
-| Make target | What runs | Reads | Writes |
+| Make target | What runs | Reads (config) | Writes |
 |---|---|---|---|
-| `download` | `transit download` (download.py) | `config/sources.toml` | `data/raw/` |
+| `download` | `transit download` (download.py) | `sources.toml` | `data/raw/` |
 | `init` | `sql/00_init` | | extensions, schemas |
-| `load` | `transit load` (load.py, osm.py) | `data/raw/` | `raw.*` |
-| `staging` | `sql/10_staging` | `raw.*`, `config/*.csv` | `staging.*` (typed, EPSG:3071) |
-| `network` | `sql/20_network` | `staging.osm_*`, `road_classes.csv` | `net.base_edges`, `net.vertices` |
-| `stops` | `transit cluster` (stops.py) + `sql/30_stops` | `staging.stops`, GTFS | `transit.*`, `net.edges` (split at platforms) |
-| `generators` | `sql/40_generators` | parcels, blocks, jobs, POIs | `gen.*` |
-| `catchments` | `transit reach` (reach.py) + `sql/50_catchments` | `net.edges`, `gen.snap` | `catch.*` |
-| `export` | `sql/60_export` + `transit export` (export.py) | everything | `site/public/data/` |
+| `load` | `transit load` (load.py, osm.py) | `sources.toml`, POI keys, walkable road classes, `[study_area]` | `raw.*` |
+| `staging` | `sql/10_staging` | `road_classes.csv`, `[analysis]` | `staging.*` (typed, EPSG:3071) |
+| `network` | `sql/20_network` | `[walk]` | `net.base_edges`, `net.vertices` |
+| `stops` | `transit cluster` (stops.py) + `sql/30_stops` | `stop_merge_overrides.csv`, `[stops]`, `[frequency]`, `[walk]` | `transit.*`, `net.edges` (split at platforms) |
+| `generators` | `sql/40_generators` | `poi_categories.csv`, `[generators]`, `[walk]`, `[study_area]` | `gen.*` |
+| `reach` | `transit reach` (reach.py) + `sql/50_reach` | `[walk]` | `catch.reach`, `catch.edge_time` |
+| `catchments` | `sql/55_catchments` | `[walk]` | `catch.gen_time`, `catch.bands` |
+| `export` | `sql/60_export_network`, `sql/61_export_generators`, then `transit tiles network`, `transit tiles generators`, `transit stops-json`, `transit catchments` (export.py) | `[tiles]`, `[frequency]`, `[catchments]`... | `site/public/data/` |
 | `basemap` | `transit basemap` | Protomaps build (HTTP) | `site/public/data/basemap.pmtiles` |
-| `test` | pytest `pipeline/tests/` | the database | |
+| `test` | pytest `pipeline/tests/` | | |
+
+The output is deterministic (sums in `numeric`, ordered inputs and views): two runs give
+byte-identical files, so a refactor can be checked with checksums.
 
 ### Schemas
 
@@ -38,7 +48,7 @@ stage and everything after it.
   `directionality`, `hourly`, `period_freq`.
 - `gen`: `parcel_units`, `population`, `jobs`, `pois`, `poi_points`, `points` (all
   generators), `snap` (point -> edge), `hex`.
-- `catch`: `reach` (stop × vertex × seconds), `edge_time`, `gen_time`, `bands`.
+- `catch`: `reach` (stop × vertex × seconds), `edge_time` (reach stage); `gen_time`, `bands` (catchments stage).
 - `export`: views that become tile layers (`walk`, `crossings`, `hex`, `pois`,
   `platforms`).
 

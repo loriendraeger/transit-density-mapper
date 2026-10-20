@@ -76,11 +76,17 @@ def export_view(view: str) -> Path:
     return out
 
 
-def tiles() -> None:
+def tiles(names: list[str] | None = None) -> None:
+    """Build site/public/data/<name>.pmtiles for each [tiles.files] entry (default: all)."""
     files = config.pipeline()["tiles"]["files"]
     attribution = config.pipeline()["tiles"]["attribution"]
+    unknown = set(names or []) - set(files)
+    if unknown:
+        raise SystemExit(f"unknown tile file(s) {sorted(unknown)}; choose from {list(files)}")
     SITE_DATA.mkdir(parents=True, exist_ok=True)
     for name, spec in files.items():
+        if names and name not in names:
+            continue
         cmd = [
             "tippecanoe",
             "-o",

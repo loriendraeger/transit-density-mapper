@@ -57,9 +57,33 @@ def reach():
 
 @app.command()
 def export():
-    """Write site/public/data/: tiles, stops.json, catchments.bin."""
+    """Write all of site/public/data/ (except the basemap): tiles, stops.json,
+    catchments.bin. The Makefile builds them one by one instead, each only when its
+    inputs change."""
     export_mod.tiles()
     export_mod.stops_json()
+    export_mod.catchments()
+
+
+@app.command()
+def tiles(
+    names: Annotated[
+        list[str] | None, typer.Argument(help="[tiles.files] entries (default: all)")
+    ] = None,
+):
+    """Build site/public/data/<name>.pmtiles from the export views."""
+    export_mod.tiles(names)
+
+
+@app.command("stops-json")
+def stops_json():
+    """Write site/public/data/stops.json."""
+    export_mod.stops_json()
+
+
+@app.command()
+def catchments():
+    """Write site/public/data/catchments.bin (blobs and spiderwebs)."""
     export_mod.catchments()
 
 

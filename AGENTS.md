@@ -29,7 +29,8 @@ Two halves, as in `../public-private-shore`:
 
 **Status (2026-10-19):** milestones 1–6 done in a first pass, built in one autonomous
 session and **not yet reviewed by the owner**. The full pipeline runs from `make`
-(under 3 minutes from scratch, after downloads), and the site runs locally
+(under 3 minutes from scratch, after downloads; ~20 s after a destination-weight
+change, since each stage reruns only when its own inputs change), and the site runs locally
 (`make site`). `site/public/data/` is **gitignored until the owner is happy with it**,
 so the deploy workflow exists but would publish a site with no data. See
 [Milestones](#milestones) and [Open questions](#open-questions).
@@ -81,7 +82,7 @@ A **for-fun learning project**. The owner is interested in GIS and transit.
 | Tests | **pytest** (light; data checks against PostGIS) |
 | Spatial database | **PostGIS 3.5 + pgRouting 4.0** (Docker; `db/Dockerfile` adds pgRouting to the multi-arch PostGIS image, since the official pgRouting images are amd64-only) |
 | Transforms | **Plain numbered SQL files** run via `psql` |
-| Orchestration | **Makefile** with stamp files |
+| Orchestration | **Makefile** with stamp files and per-config-section content stamps (`pipeline/deps.sh`); steps `exec` into one long-lived tools container |
 | Geo CLI tools | GDAL/OGR (`ogr2ogr`), `osmium-tool`, **tippecanoe**, `pmtiles` CLI |
 | Python libs | **pyosmium** (OSM with node ids), psycopg 3, **scipy** (clustering), **Shapely 2** (blob polygons), Typer |
 | Reproducibility | **Docker Compose**: `db` + a `pipeline` tools container (pinned GDAL/tippecanoe/osmium/uv). DB on host port **5433** so it can run beside the sibling's. |
@@ -150,8 +151,10 @@ exports in EPSG:4326.
 │   │   ├── 20_network/       # corner model, routing graph, connected components
 │   │   ├── 30_stops/         # merged stops, frequencies, platform snapping
 │   │   ├── 40_generators/    # population, jobs, POIs, snapping, density hexes
-│   │   ├── 50_catchments/    # edge/generator walk times, banded totals
-│   │   └── 60_export/        # tile-layer views
+│   │   ├── 50_reach/         # per-edge walk times (after `transit reach`)
+│   │   ├── 55_catchments/    # generator walk times, banded totals
+│   │   ├── 60_export_network/      # network.pmtiles views
+│   │   └── 61_export_generators/   # generators.pmtiles views
 │   └── tests/                # pytest data checks (run after the pipeline)
 ├── data/                     # raw/ and build/ (gitignored)
 └── site/                     # Vite + Solid app; public/data/ is gitignored for now
