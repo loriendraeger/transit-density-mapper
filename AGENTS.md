@@ -27,11 +27,13 @@ Two halves, as in `../public-private-shore`:
    per-stop data come out.
 2. **Static site** (GitHub Pages, client-only): renders the pipeline's outputs.
 
-**Status (2026-10-19):** milestones 1–6 done in a first pass, built in one autonomous
-session and **not yet reviewed by the owner**. The full pipeline runs from `make`
-(under 3 minutes from scratch, after downloads; ~20 s after a destination-weight
-change, since each stage reruns only when its own inputs change), and the site runs locally
-(`make site`). `site/public/data/` is **gitignored until the owner is happy with it**,
+**Status (end of 2026-10-19):** milestones 1–6 done. Built in one long session: an
+autonomous first pass, then a day of owner review and changes (layout, hexes, route
+lines, one-way display, catchment file format, pipeline speed; all recorded below). The
+owner has looked at the site and tuned some weights but hasn't signed off on the data.
+The full pipeline runs from `make` (~2.5 min from scratch after downloads; ~20 s after a
+destination-weight change; ~1 s when nothing changed), and the site runs locally
+(`make site`). Next steps: [Open questions](#open-questions). `site/public/data/` is **gitignored until the owner is happy with it**,
 so the deploy workflow exists but would publish a site with no data. See
 [Milestones](#milestones) and [Open questions](#open-questions).
 
@@ -227,8 +229,9 @@ exports in EPSG:4326.
 - **Destinations**: OSM POIs → categories by the first matching rule; same-named pieces
   of one place within 300 m merge; parks/gardens inside a bigger park/garden are dropped
   as part of it (2026-10-19: the UW Arboretum had ~40 tree-collection points inside
-  Longenecker Gardens, each counted as a botanical garden); parks/gardens scale by √(area in ha), clamped
-  0.5–4; polygons reachable from outline points every 75 m. Private ones dropped
+  Longenecker Gardens, each counted as a botanical garden); parks/gardens scale by √(area in ha), clamped to
+  `park_scale_min`–`park_scale_max` (owner set 0.5–2 on 2026-10-19, and botanical
+  gardens to weight 3 instead of 10, after the Arboretum looked overweighted); polygons reachable from outline points every 75 m. Private ones dropped
   (`access=private/no`, `garden:type=residential/private`).
 - **Density map layer**: 150 m hexagons of population, jobs and destination points per
   km². A destination area (park, garden, campus) spreads its weight over the hexes it
@@ -276,8 +279,39 @@ units outside Madison near the census; Route A peak frequency plausible; a 10-mi
 walkshed area plausible; no arterial crossing without signal/marking evidence.
 `npm run check` in `site/` runs Prettier, ESLint and tsc. No frontend test suite.
 
-To screenshot the site headlessly, plain headless Chrome has no WebGL2 on this Mac; use
-Playwright with the system Chrome and `--use-gl=angle --use-angle=metal`.
+Refactors of the pipeline are checked with checksums: the output is deterministic, so
+record `shasum -a 256 site/public/data/*` before, rerun, and compare (see
+docs/ARCHITECTURE.md, "Verifying a change"). To look at the site, see "Screenshots" there.
+
+## Working notes (for the next session)
+
+Things learned the hard way; check these before debugging the same problem again.
+
+- **Node 24** (`site/.nvmrc`). The shell's default `node` may be 20: run
+  `export PATH=~/.nvm/versions/node/v24.22.0/bin:$PATH` first. Installing packages under
+  Node 20 left Vite without its native bundler binding (rolldown), and ESLint 10 crashes
+  on Node 20.
+- **The pipeline container**: `make` starts it (`tools-up`); run one-off commands with
+  `docker compose exec -T pipeline uv run --project pipeline transit <cmd>` (or `python`,
+  `pytest`). The DB is on host port 5433.
+- **Rerun logic**: `pipeline/stage.sh` and `pipeline/deps.sh` are not inputs to any step.
+  After editing them, delete `data/build/.stamps/` (or `make db-reset`) to rebuild.
+  Running one stage by hand (e.g. `transit sql 30_stops`) doesn't update its stamp, and
+  rerunning 30_stops alone gives platform vertices new ids, leaving later stages stale:
+  prefer `make <target>`.
+- **psql variables don't expand inside function bodies** (`$$ ... $$`): pass them as
+  arguments (`20_graph.sql`) or generate SQL with `\gexec` (`50_hex.sql`).
+- **MapLibre**: the Protomaps basemap already has a layer called `pois` (ours is
+  `destinations`); a `["zoom"]` expression must be the outermost `interpolate`/`step`;
+  `--use-attribute-for-id` in tippecanoe needs numeric ids (text ids go in another
+  column, e.g. `osm_id`).
+- **Solid**: no `<>` fragments inside an element; eslint-plugin-solid flags signal reads
+  in MapLibre callbacks (wrap intentional ones in `untrack`).
+- **Shell**: zsh doesn't word-split `$VAR`; use arrays (`F=(a b); cmd $F`). `which time`
+  is a keyword in zsh; use `/usr/bin/time -p`.
+- **Owner's working style**: workshop design choices with options and a recommendation
+  (mockups help); say plainly when an earlier claim was wrong; verify refactors produce
+  identical output; commit on `main`, never push.
 
 ## Milestones
 
@@ -294,6 +328,21 @@ Playwright with the system Chrome and `--use-gl=angle --use-angle=metal`.
 
 ## Open questions
 
+- **A critique of the analysis's assumptions** is in `docs/assumptions-critique.md`
+  (owner's local notes, deliberately not committed; may be missing in a fresh clone).
+  Its top suggestions: validate the score against stop-level boardings and fit the
+  weights; use current dwelling units for population and add ACS zero-car households;
+  per-direction frequency instead of the ×2 rule; separate origin/destination scores and
+  a stop-overlap view.
+- **Faster blobs (offered, not done)**: build each band from the previous band plus the
+  new pieces (incremental union) instead of a full union per band; the unions are ~70 %
+  of the blob export (~60 s). Output would differ by up to ~1 m in places, so verify by
+  decoding both `catchments.bin` files and comparing blob areas, not checksums.
+- **CPU settings (offered, not done)**: move the blob worker count (`export.catchments`,
+  default = CPUs Docker allots) and `reach.py` `WORKERS = 8` into a `pipeline.toml`
+  section.
+- **Stop colors vs. the yellow destinations ramp**: close hues; if confusing, move stop
+  scores to another hue.
 - Weekday peak windows and period weights are first guesses; check them against Metro's
   actual service span.
 - Tertiary roads are not barriers. Some (e.g. busy collectors) might deserve it;

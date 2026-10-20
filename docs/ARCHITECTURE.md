@@ -99,3 +99,35 @@ Types for the JSON files: `site/src/lib/contract.ts`. Keep it in step with expor
 | `components/` | Left panel (settings, layers) and the right-hand stop drawer (`Panel.tsx`), settings, stop detail, hourly chart (Observable Plot) |
 | `stops/` | Stop analysis view and TanStack table |
 | `about/About.tsx` | Methodology page |
+
+## Verifying a change
+
+The pipeline output is deterministic (exact `numeric` sums, ordered inputs and views),
+so a refactor that shouldn't change results can be proven with checksums:
+
+```sh
+shasum -a 256 site/public/data/*.pmtiles site/public/data/*.json site/public/data/*.bin > /tmp/before.sha
+# ...change code, then rebuild what it affects (or rm -rf data/build/.stamps; make all)
+shasum -a 256 site/public/data/*.pmtiles site/public/data/*.json site/public/data/*.bin | diff /tmp/before.sha -
+```
+
+`stops.json` carries the generation date, so compare runs from the same day (or diff its
+`stops` array). For a change that legitimately moves blob geometry by small amounts,
+decode both `catchments.bin` files (layout at `CATCH_FILE` in export.py: header, JSON
+index, raw-deflate varint records) and compare spiderwebs exactly and blobs by
+symmetric-difference area.
+
+## Screenshots
+
+Plain headless Chrome on this Mac has no WebGL2, so MapLibre won't start. What works:
+Playwright (`playwright-core`, installed outside the repo) driving the system Chrome:
+
+```js
+chromium.launch({ channel: 'chrome', headless: true,
+                  args: ['--use-gl=angle', '--use-angle=metal'] })
+```
+
+Run the dev server on a fixed port (`npx vite --port 5199 --strictPort`), open
+`http://localhost:5199/transit-density-mapper/#/map?stop=973&density=pop,jobs,dest`,
+wait ~10 s for tiles, then screenshot. URL parameters (state/url.ts) set up most views;
+mouse moves/clicks (e.g. the drawer's ✕ at the top right) cover hover and closing.
