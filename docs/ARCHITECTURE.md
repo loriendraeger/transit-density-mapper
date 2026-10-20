@@ -7,14 +7,22 @@ methods, see [AGENTS.md](../AGENTS.md).
 
 Every step runs in one long-lived `pipeline` container (`make tools-up` starts it; the
 Makefile runs `docker compose exec -T pipeline uv run --project pipeline transit
-<command>`). Stamp files in `data/build/.stamps/` track the database stages. Each stamp
-depends on its stage's SQL and Python, the stamps before it, and only the config it
-reads: whole config files, or content stamps from `pipeline/deps.sh` in
-`data/build/deps/` (one per `pipeline.toml` section, plus the two config columns the
-loader reads), which are rewritten only when their content changes. A no-op `make` takes
-about a second; changing a destination weight reruns only generators -> catchments ->
-`stops.json` and `generators.pmtiles` (~20 s); a full rebuild including the load is
-under 3 minutes.
+<command>`).
+
+**What reruns is decided by content hashes, not file timestamps.** Make only orders the
+steps; each recipe calls `pipeline/stage.sh NAME COMMAND INPUTS...`. A step's inputs are
+its SQL and Python, the config it reads (whole files, or slices that `pipeline/deps.sh`
+writes to `data/build/deps/`: one per `pipeline.toml` section, plus the two config
+columns the loader reads), and the stamps of the steps before it. `stage.sh` takes a
+SHA-256 over those contents and runs the step only if it differs from the fingerprint
+stored in `data/build/.stamps/NAME` when the step last succeeded (or a declared output
+file is missing). A stamp holds its step's fingerprint, so later steps rerun whenever an
+earlier one ran with different inputs. Touching, re-saving or checking out a file
+without changing it reruns nothing.
+
+A no-op `make` takes about a second; changing a destination weight reruns only
+generators -> catchments -> `stops.json` and `generators.pmtiles` (~20 s); a full rebuild
+including the load is under 2.5 minutes.
 
 | Make target | What runs | Reads (config) | Writes |
 |---|---|---|---|

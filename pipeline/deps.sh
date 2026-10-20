@@ -1,22 +1,20 @@
 #!/bin/sh
-# Content stamps for the Makefile, written to data/build/deps/:
+# Config slices for the pipeline steps, written to data/build/deps/:
 #   toml.<section>   each pipeline.toml section (with its subtables, e.g. tiles.files.*)
 #   poi_keys         the OSM keys that mark a destination (all the loader reads of
 #                    poi_categories.csv)
 #   road_walkable    road class + walkable (all the loader reads of road_classes.csv)
-# A stamp is rewritten only when its content changes, so its timestamp says "this input
-# changed". Rules depend on these instead of on whole config files: changing a weight in
-# poi_categories.csv no longer reloads OSM, and changing [catchments] doesn't rebuild
-# the network. Plain sh/awk so it runs on the host at Makefile parse time.
+# Steps list these as inputs instead of whole config files, and stage.sh hashes their
+# contents: changing a weight in poi_categories.csv doesn't touch poi_keys, so OSM isn't
+# reloaded; changing [catchments] doesn't change toml.walk, so the network isn't rebuilt.
+# Plain sh/awk so it runs on the host when make starts.
 set -e
 cd "$(dirname "$0")/.."
 out=data/build/deps
 mkdir -p "$out"
 
-put() {  # put <name>: stdin -> $out/<name>, only if different
-    tmp="$out/$1.tmp"
-    cat > "$tmp"
-    if cmp -s "$tmp" "$out/$1"; then rm "$tmp"; else mv "$tmp" "$out/$1"; fi
+put() {  # put <name>: stdin -> $out/<name>
+    cat > "$out/$1"
 }
 
 for s in study_area analysis stops frequency walk generators catchments tiles; do

@@ -82,7 +82,7 @@ A **for-fun learning project**. The owner is interested in GIS and transit.
 | Tests | **pytest** (light; data checks against PostGIS) |
 | Spatial database | **PostGIS 3.5 + pgRouting 4.0** (Docker; `db/Dockerfile` adds pgRouting to the multi-arch PostGIS image, since the official pgRouting images are amd64-only) |
 | Transforms | **Plain numbered SQL files** run via `psql` |
-| Orchestration | **Makefile** with stamp files and per-config-section content stamps (`pipeline/deps.sh`); steps `exec` into one long-lived tools container |
+| Orchestration | **Makefile** for step order; each step runs only when the SHA-256 of its inputs (files, config sections via `pipeline/deps.sh`, earlier steps' fingerprints) changes (`pipeline/stage.sh`), never by file timestamps (owner's call 2026-10-19); steps `exec` into one long-lived tools container |
 | Geo CLI tools | GDAL/OGR (`ogr2ogr`), `osmium-tool`, **tippecanoe**, `pmtiles` CLI |
 | Python libs | **pyosmium** (OSM with node ids), psycopg 3, **scipy** (clustering), **Shapely 2** (blob polygons), Typer |
 | Reproducibility | **Docker Compose**: `db` + a `pipeline` tools container (pinned GDAL/tippecanoe/osmium/uv). DB on host port **5433** so it can run beside the sibling's. |
