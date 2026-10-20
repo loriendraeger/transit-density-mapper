@@ -334,25 +334,40 @@ def _catchment(cid: str) -> tuple[str, bytes]:
     id_deltas = np.diff(np.array([0, *ids])).tolist()
     times = [int(round(edge_t[i])) for i in ids]
 
-    # Blob: cumulative polygons for each band.
+    # Blob: cumulative polygons for each band. Most edges are fully reached in many
+    # bands, so each edge is buffered once up front and reused; only the partly reached
+    # pieces are cut and buffered per band. The union's input keeps the same order as
+    # cutting and buffering everything per band (its float results depend on order).
+    radius = c["blob_buffer_m"]
+    full_buf = shapely.buffer(np.array(geoms, dtype=object), radius, quad_segs=2)
     bands = []
     for b in range(1, math.ceil(max_s / band_s) + 1):
         limit = b * band_s
         fa = np.clip((limit - ts) / cost, 0, 1)
         fb = np.clip((limit - tt) / cost, 0, 1)
-        pieces = []
-        for g, x, y in zip(geoms, fa, fb, strict=True):
-            if x + y >= 1:
-                pieces.append(g)
-            else:
-                if x > 0:
-                    pieces.append(substring(g, 0, x, normalized=True))
-                if y > 0:
-                    pieces.append(substring(g, 1 - y, 1, normalized=True))
-        if not pieces:
+        full = fa + fb >= 1
+        bufs: list = []
+        cut: list = []  # partly reached pieces, buffered below into their slots
+        slots: list[int] = []
+        for i in np.flatnonzero(full | (fa > 0) | (fb > 0)):
+            if full[i]:
+                bufs.append(full_buf[i])
+                continue
+            g = geoms[i]
+            for piece in (
+                substring(g, 0, fa[i], normalized=True) if fa[i] > 0 else None,
+                substring(g, 1 - fb[i], 1, normalized=True) if fb[i] > 0 else None,
+            ):
+                if piece is not None:
+                    slots.append(len(bufs))
+                    bufs.append(None)
+                    cut.append(piece)
+        if not bufs:
             bands.append(shapely.Polygon())
             continue
-        u = shapely.union_all(shapely.buffer(pieces, c["blob_buffer_m"], quad_segs=2))
+        for slot, buf in zip(slots, shapely.buffer(cut, radius, quad_segs=2), strict=True):
+            bufs[slot] = buf
+        u = shapely.union_all(bufs)
         u = shapely.buffer(
             shapely.buffer(u, c["blob_close_m"], quad_segs=2), -c["blob_close_m"], quad_segs=2
         )
@@ -370,7 +385,7 @@ def _catchment(cid: str) -> tuple[str, bytes]:
     return cid, _pack_record(id_deltas, times, bands_enc)
 
 
-def catchments(workers: int = 12) -> None:
+def catchments(workers: int | None = None) -> None:
     """All stops' catchments in one binary file with an index (layout: CATCH_FILE)."""
     with psycopg.connect("") as conn:
         ids = [
@@ -380,6 +395,7 @@ def catchments(workers: int = 12) -> None:
             ).fetchall()
         ]
     records: dict[str, bytes] = {}
+    # One process per CPU (Pool's default); blobs are CPU-bound Shapely work.
     with Pool(workers) as pool:
         for i, (cid, rec) in enumerate(pool.imap_unordered(_catchment, ids), 1):
             records[cid] = rec
