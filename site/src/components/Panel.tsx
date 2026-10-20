@@ -126,8 +126,8 @@ function Layers(): JSX.Element {
       </ul>
       <h3 class="subhead">Trip generators</h3>
       <p class="hint">
-        Pick one or more: with two, each hexagon splits in half (left, right); with three, in
-        thirds, in this order.
+        Pick one or more: with two, each hexagon splits in half (left, right); with three, into
+        three wedges, in this order.
       </p>
       <For each={GENERATORS}>
         {(g) => (

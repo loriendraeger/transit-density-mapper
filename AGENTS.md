@@ -230,8 +230,10 @@ exports in EPSG:4326.
 ## Frontend
 
 - **Generator hexes (decided 2026-10-19)**: checkboxes for population (blue), jobs (green)
-  and culture (yellow; destination points per km²). With two checked each hex splits
-  into halves, with three into thirds (rhombi), one generator per piece, in that order
+  and destinations (yellow; destination points per km²). With two checked each hex
+  splits into halves, with three into three wedges (center to alternating edge
+  midpoints; rhombi were rejected for their 3D-cube illusion), one generator per piece,
+  in that order
   (`gen.hex_parts`, `export.hex_parts`).
 - **Basemap**: Protomaps style with its greens (parks, woods, scrub, green landcover)
   replaced by the land color (`neutralFlavor` in `map/colors.ts`), so green only means

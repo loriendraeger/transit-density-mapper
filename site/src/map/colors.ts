@@ -11,7 +11,7 @@ export const MODE: Mode = window.matchMedia('(prefers-color-scheme: dark)').matc
 //   stop score     orange ordinal ramp (5 steps), the map's subject
 //   density        one sequential ramp per generator, under everything (lightest steps
 //                  recede into the surface by design): population blue, jobs green,
-//                  culture (destinations) yellow (owner's picks)
+//                  destinations yellow (owner's picks)
 //   catchment      violet (categorical slot 7): blob and spiderweb of the selected stop
 
 /** Stop score ramp, low -> high. Dark mode: low recedes into the dark surface. */
@@ -27,7 +27,7 @@ export const GENERATORS: Generator[] = ['pop', 'jobs', 'dest']
 export const GENERATOR_LABELS: Record<Generator, { label: string; unit: string }> = {
   pop: { label: 'Population', unit: 'Residents per km²' },
   jobs: { label: 'Jobs', unit: 'Jobs per km²' },
-  dest: { label: 'Culture', unit: 'Destination points per km² (venues, food, parks...)' },
+  dest: { label: 'Destinations', unit: 'Destination points per km² (food, venues, parks...)' },
 }
 
 /** Density ramps, low -> high; dark mode runs from the surface up. */

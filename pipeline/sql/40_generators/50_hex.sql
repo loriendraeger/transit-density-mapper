@@ -28,7 +28,9 @@ UPDATE gen.hex SET area_km2 = ST_Area(geom) / 1e6;
 -- counterclockwise: v0 left, v1 bottom-left, v2 bottom-right, v3 right, v4 top-right,
 -- v5 top-left.
 --   halves: left and right of the vertical line through the center
---   thirds: three rhombi meeting at the center (v5-v0-v1, v1-v2-v3, v3-v4-v5)
+--   thirds: three wedges from the center to the midpoints of alternating edges
+--           (v0-v1, v2-v3, v4-v5). Equal areas; not rhombi, which side by side read as
+--           3D cubes (the "tumbling blocks" illusion; owner's call 2026-10-19).
 DROP TABLE IF EXISTS gen.hex_parts CASCADE;
 CREATE TABLE gen.hex_parts AS
 WITH v AS (
@@ -40,7 +42,9 @@ WITH v AS (
 ),
 m AS (
     SELECT *, ST_LineInterpolatePoint(ST_MakeLine(v1, v2), 0.5) AS mb,
-              ST_LineInterpolatePoint(ST_MakeLine(v4, v5), 0.5) AS mt
+              ST_LineInterpolatePoint(ST_MakeLine(v4, v5), 0.5) AS mt,
+              ST_LineInterpolatePoint(ST_MakeLine(v0, v1), 0.5) AS m01,
+              ST_LineInterpolatePoint(ST_MakeLine(v2, v3), 0.5) AS m23
     FROM v
 )
 SELECT id AS hex_id, 'half'::text AS split, 0 AS slot,
@@ -48,8 +52,8 @@ SELECT id AS hex_id, 'half'::text AS split, 0 AS slot,
 UNION ALL
 SELECT id, 'half', 1, ST_MakePolygon(ST_MakeLine(ARRAY[mb, v2, v3, v4, mt, mb])) FROM m
 UNION ALL
-SELECT id, 'third', 0, ST_MakePolygon(ST_MakeLine(ARRAY[c, v5, v0, v1, c])) FROM m
+SELECT id, 'third', 0, ST_MakePolygon(ST_MakeLine(ARRAY[c, mt, v5, v0, m01, c])) FROM m
 UNION ALL
-SELECT id, 'third', 1, ST_MakePolygon(ST_MakeLine(ARRAY[c, v1, v2, v3, c])) FROM m
+SELECT id, 'third', 1, ST_MakePolygon(ST_MakeLine(ARRAY[c, m01, v1, v2, m23, c])) FROM m
 UNION ALL
-SELECT id, 'third', 2, ST_MakePolygon(ST_MakeLine(ARRAY[c, v3, v4, v5, c])) FROM m;
+SELECT id, 'third', 2, ST_MakePolygon(ST_MakeLine(ARRAY[c, m23, v3, v4, mt, c])) FROM m;
