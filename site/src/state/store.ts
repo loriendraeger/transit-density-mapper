@@ -101,8 +101,35 @@ export const [showSpiderweb, setShowSpiderweb] = createSignal(true)
 export const [showCrossings, setShowCrossings] = createSignal(false)
 export const [showRoutes, setShowRoutes] = createSignal(true)
 export const [blobOpacity, setBlobOpacity] = createSignal(0.5)
+/** The settings fit to observed boardings: walk limit, decay and the three weights
+ * (destination categories keep their weights). */
+export function applyFit(): void {
+  const f = data()?.settings.fit
+  if (!f) {
+    return
+  }
+  setWalkMin(f.walk_min)
+  setDecay({ kind: f.decay.kind, param: f.decay.param })
+  setWeights({ ...weights(), ...f.weights })
+}
+
+/** Whether the current walk limit, decay and weights are the fitted ones. */
+export function fitActive(): boolean {
+  const f = data()?.settings.fit
+  const w = weights()
+  return (
+    !!f &&
+    walkMin() === f.walk_min &&
+    decay().kind === f.decay.kind &&
+    decay().param === f.decay.param &&
+    w.pop === f.weights.pop &&
+    w.jobs === f.weights.jobs &&
+    w.dest === f.weights.dest
+  )
+}
+
 /** What stop circles are colored by. */
-export type StopColor = 'score' | 'freq'
+export type StopColor = 'score' | 'freq' | 'riders'
 export const [stopColor, setStopColor] = createSignal<StopColor>('score')
 
 /** Ask the map to fly to a stop (from the table or the URL). */

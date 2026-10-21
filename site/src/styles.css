@@ -229,6 +229,17 @@ button.primary {
   padding: 6px 12px;
   cursor: pointer;
 }
+button.primary:disabled {
+  color: var(--ink-2);
+  background: var(--hairline);
+  cursor: default;
+}
+.fit-preset {
+  margin: 4px 0 12px;
+}
+.fit-preset .hint {
+  margin-top: 6px;
+}
 .back {
   margin-bottom: 8px;
 }

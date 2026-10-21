@@ -31,7 +31,7 @@ Two halves, as in `../public-private-shore`:
 autonomous first pass, then a day of owner review and changes (layout, hexes, route
 lines, one-way display, catchment file format, pipeline speed; all recorded below). The
 owner has looked at the site and tuned some weights but hasn't signed off on the data.
-The full pipeline runs from `make` (~2.5 min from scratch after downloads; ~20 s after a
+The full pipeline runs from `make` (~2.5 min from scratch after downloads; ~25 s after a
 destination-weight change; ~1 s when nothing changed), and the site runs locally
 (`make site`). Next steps: [Open questions](#open-questions). `site/public/data/` is **gitignored until the owner is happy with it**,
 so the deploy workflow exists but would publish a site with no data. See
@@ -72,6 +72,7 @@ A **for-fun learning project**. The owner is interested in GIS and transit.
 | Score (2026-10-19) | Each component (population, jobs, destinations) is summed with the **decay weight** of its walk time, **normalized 0–100 against the best stop at the same settings**, then weight-averaged. Decays: none, linear, exponential (half-life), S-curve (midpoint). Default: exponential, 8 min half-life, 10 min limit. |
 | Blob rendering (2026-10-19) | Cumulative 1-minute bands stacked with per-band opacities solved so the **blob's opacity at time t follows the score's decay curve**. |
 | Licenses (2026-10-19) | **Same split as the sibling**: code GPL-3.0-or-later (`LICENSE`), docs CC BY-SA 4.0 (`LICENSE-DOCS`), outputs ODbL 1.0 with upstream attributions (`LICENSE-DATA`; required by OSM). |
+| Calibration (2026-10-20) | Fit the score's weights, decay and walk limit to **observed boardings per trip** (MPO, Feb 2024), shipped as a **preset button**; the default sliders stay as they were. Special stops (schools, campus, park-and-rides, airport, transfer points) found from **OSM + stop names**, left out of the fit. Leftovers shown as a **"Riders vs. expected" stop color** (owner's picks among options). |
 | Site data in git (2026-10-19) | `site/public/data/` is **gitignored** until the owner is happy with it. |
 | Catchment file (2026-10-19) | All stops' blobs and spiderwebs in **one file**, `catchments.bin` (owner preference over one file per stop): a JSON index of byte ranges, then one raw-deflate record per stop (varint delta-encoded edge ids and coordinates, walk times as bytes in 10 s steps). The site fetches the index once and each selected stop's bytes with an HTTP range request, like PMTiles. 7.9 MB total (was 41 MB as JSON); ~9 kB per stop. Tried and rejected: storing the blob as non-overlapping rings (bigger: every boundary is stored twice). |
 
@@ -112,7 +113,7 @@ URLs, layers, fields, licenses and recon findings live in `config/sources.toml`.
 | **City of Madison tax parcels** (ArcGIS service) | Dwelling units per parcel (`TotalDwellingUnits`) |
 | **WI Statewide Parcel Map V12** | Parcels outside Madison (no unit count) |
 | **Protomaps** daily build | Basemap |
-| **MPO Metro Ridership by Stop** (Feb 2024, City open data) | Validation only (`make validate`), not on the site |
+| **MPO Metro Ridership by Stop** (Feb 2024, City open data) | Calibrating the score; riders vs. expected per stop |
 
 ## Architecture
 
@@ -158,7 +159,7 @@ exports in EPSG:4326.
 │   │   ├── 55_catchments/    # generator walk times, banded totals
 │   │   ├── 60_export_network/      # network.pmtiles views
 │   │   ├── 61_export_generators/   # generators.pmtiles views
-│   │   └── 70_validation/    # ridership joined to merged stops (`make validate` only)
+│   │   └── 70_validation/    # ridership matched to stops, special stops (then `transit fit`)
 │   └── tests/                # pytest data checks (run after the pipeline)
 ├── data/                     # raw/ and build/ (gitignored)
 └── site/                     # Vite + Solid app; public/data/ is gitignored for now
@@ -269,37 +270,56 @@ exports in EPSG:4326.
   replacing the panel until closed).
 - **Stop analysis tab** (`site/src/stops/`): sortable, filterable TanStack table, settings
   sidebar, detail panel with "Show walkshed on map".
+- **Riders vs. expected**: a "Stops colored by" option (diverging red ↔ gray ↔ blue,
+  hollow = no data), a drawer section with observed/expected and special-stop reasons,
+  a table column; "Use settings fitted to ridership" button above the weight sliders.
 - **About tab**: methodology and sources.
 - Settings live in the URL (`state/url.ts`); `?stop=` accepts a merged-stop id or any
   platform's GTFS stop id.
 - Colors (`map/colors.ts`, checked with the dataviz validator, light and dark): orange
-  for scores; blue, green, yellow for the three generators; violet for catchments.
+  for scores; blue, green, yellow for the three generators; violet for catchments;
+  red ↔ blue diverging for riders vs. expected (magenta ↔ aqua was tried to avoid blue
+  but fails CVD: deuteranopes can't tell the arms apart).
 
-### Validation against ridership (2026-10-20)
+### Calibration against ridership (2026-10-20)
 
-`make validate` (not part of `make`) downloads the MPO's weekday boardings per stop
-(February 2024, farebox + AVL estimates), matches them to platforms (by stop code within
-50 m, else nearest platform within 30 m; 96 % of boardings match), sums per merged
-stop, and writes `data/build/validation/ridership.md` (`validate.py`): Spearman
-correlations, a log-log direct ridership model and the biggest residuals, with the
-score recomputed at the site defaults. Sources marked `purpose = "validation"` in
-`sources.toml` are skipped by the default download/load and the site's source list.
+The `fit` step (`70_validation/`, `fit.py`; runs in `make`, ~5 s, before `stops.json`):
 
-First results: score vs. boardings ρ = 0.52 (destinations 0.46, jobs 0.40, population
-0.39); frequency alone ρ = 0.77, R² 0.64 on log scales, and the catchment adds little
-on top (R² 0.66; elasticities: frequency 1.7, destinations 0.18, population 0.12, jobs
-≈ 0). Caveats: frequency is partly circular (service goes where riders are); 2024
-boardings vs. 2026 service (BRT opened in between); over-performers are what a walk
-catchment can't see: high schools, Epic, the airport, park-and-rides, campus
-(Langdon & N Park).
+- **Data**: the MPO's weekday boardings per stop (February 2024, farebox + AVL
+  estimates; before the BRT opened on 2024-09-22), matched to platforms by stop code
+  within 50 m, else the nearest platform within 30 m (96 % of boardings match; the big
+  miss is South Transfer Point, closed), summed per merged stop.
+- **Special stops** (`valid.special`, left out of the fit): within 150 m of a named
+  middle/high school or named for one ("... at Memorial High": its OSM outline has no
+  name), inside a university/college polygon, park-and-rides (OSM `park_ride` lots or
+  the name), the airport (name), transfer points (5+ routes). 101 stops. Fixes in
+  `config/special_stops.csv` (`reason` = none clears a stop).
+- **Model**: the score's own formula fit to boardings per trip/h (weekday frequency):
+  `b0 + w_pop·pop + w_jobs·jobs + w_dest·dest`, non-negative, least squares on
+  log(1 + ·) (raw-scale least squares put all weight on destinations, driven by a few
+  big stops); half-life and walk limit searched over whole minutes; 600 stops fit (not
+  special, ≥ 0.5 trips/h).
+- **Result**: population 5, jobs 1.5, destinations 4.5 (0–5 sliders), 6 min walk, 3 min
+  half-life; R² 0.177 (5-fold CV 0.164) vs. 0.153 at the defaults; the walk limit
+  barely matters past 6 min. Rank correlation with boardings: score 0.52 at defaults,
+  frequency 0.77; the catchment explains a modest share of riders per trip.
+- **Site**: "Use settings fitted to ridership" (sets weights, decay, walk limit;
+  categories unchanged); stop color "Riders vs. expected" = (observed + 5) ÷
+  (expected + 5), expected = fit at the fitted settings × weekday frequency (fixed, not
+  the sliders); drawer section and table column. Report with correlations and the
+  biggest residuals: `data/build/validation/ridership.md`.
+- **Caveats**: 2024 riders vs. 2026 service; frequency is partly circular; boardings
+  per trip also depend on where the route goes and position on the line; residuals are
+  where the placement question starts, not answers.
 
 ## Testing
 
-`make test` (after `make catchments`): pytest data checks in `pipeline/tests/`: every
+`make test` (after `make`): pytest data checks in `pipeline/tests/`: every
 platform in exactly one merged stop; the owner's two merge examples; BRT stations stay
 whole; platforms snap within 50 m; dasymetric population sums to the census; estimated
 units outside Madison near the census; Route A peak frequency plausible per direction (one-way and two-way stop); a 10-minute
-walkshed area plausible; no arterial crossing without signal/marking evidence.
+walkshed area plausible; no arterial crossing without signal/marking evidence; > 90 % of
+boardings matched; fitted settings inside the slider ranges.
 `npm run check` in `site/` runs Prettier, ESLint and tsc. No frontend test suite.
 
 Refactors of the pipeline are checked with checksums: the output is deterministic, so
@@ -354,7 +374,8 @@ Things learned the hard way; check these before debugging the same problem again
 - **A critique of the analysis's assumptions** is in `docs/assumptions-critique.md`
   (owner's local notes, deliberately not committed; may be missing in a fresh clone).
   Its top suggestions: validate the score against stop-level boardings and fit the
-  weights (validation done 2026-10-20, see above; fitting not started); use current dwelling units for population and add ACS zero-car households;
+  weights (done 2026-10-20, see [Calibration](#calibration-against-ridership-2026-10-20); the MPO
+  also has an April 2025 APC-based estimate, post-BRT, only as a PDF map: worth asking for); use current dwelling units for population and add ACS zero-car households;
   per-direction frequency instead of the ×2 rule (done 2026-10-20); separate
   origin/destination scores and a stop-overlap view.
 - **Faster blobs (offered, not done)**: build each band from the previous band plus the

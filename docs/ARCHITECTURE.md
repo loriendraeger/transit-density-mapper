@@ -35,10 +35,10 @@ including the load is under 2.5 minutes.
 | `generators` | `sql/40_generators` | `poi_categories.csv`, `[generators]`, `[walk]`, `[study_area]` | `gen.*` |
 | `reach` | `transit reach` (reach.py) + `sql/50_reach` | `[walk]` | `catch.reach`, `catch.edge_time` |
 | `catchments` | `sql/55_catchments` | `[walk]` | `catch.gen_time`, `catch.bands` |
+| `fit` | `sql/70_validation`, `transit fit` (fit.py) | `special_stops.csv`, `[ridership]`, `[frequency]`, `[walk]` | `valid.*`, `data/build/validation/ridership.md` |
 | `export` | `sql/60_export_network`, `sql/61_export_generators`, then `transit tiles network`, `transit tiles generators`, `transit stops-json`, `transit catchments` (export.py) | `[tiles]`, `[frequency]`, `[catchments]`... | `site/public/data/` |
 | `basemap` | `transit basemap` | Protomaps build (HTTP) | `site/public/data/basemap.pmtiles` |
 | `test` | pytest `pipeline/tests/` | | |
-| `validate` (not in `make`) | `transit download/load ridership`, `sql/70_validation`, `transit validate` (validate.py) | `[ridership]` in `sources.toml`, `[frequency]`, `[walk]` | `valid.*`, `data/build/validation/ridership.md` |
 
 The output is deterministic (sums in `numeric`, ordered inputs and views): two runs give
 byte-identical files, so a refactor can be checked with checksums.
@@ -59,7 +59,8 @@ byte-identical files, so a refactor can be checked with checksums.
 - `gen`: `parcel_units`, `population`, `jobs`, `pois`, `poi_points`, `points` (all
   generators), `snap` (point -> edge), `hex`.
 - `catch`: `reach` (stop × vertex × seconds), `edge_time` (reach stage); `gen_time`, `bands` (catchments stage).
-- `valid`: `ridership` (MPO stops matched to platforms), `cluster_ridership`.
+- `valid`: `ridership` (MPO stops matched to platforms), `cluster_ridership`, `special`
+  (+ `special_overrides`), `fit_params`, `stop_fit` (observed vs. expected).
 - `export`: views that become tile layers (`walk`, `crossings`, `hex`, `pois`,
   `platforms`).
 
@@ -75,12 +76,13 @@ byte-identical files, so a refactor can be checked with checksums.
 | Unit estimates outside Madison | `[generators]` and `40_generators/10_population.sql` |
 | Blob shape | `[catchments]` |
 | Which layers go into which PMTiles | `[tiles.files.*]` |
+| Special stops, fit search ranges | `[ridership]`; one-off fixes in `config/special_stops.csv` (`stop_id,reason,note`; reason `none` clears) |
 
 ## Site outputs (`site/public/data/`)
 
 | File | Contents | Made by |
 |---|---|---|
-| `stops.json` | Every merged stop: name, codes, routes, trips/hour (per direction) by period × route, departures by hour × day type, banded totals per measure; plus routes, measures, settings, sources | `export.stops_json` |
+| `stops.json` | Every merged stop: name, codes, routes, trips/hour (per direction) by period × route, observed/expected riders, special-stop reasons, departures by hour × day type, banded totals per measure; plus routes, measures, settings, sources | `export.stops_json` |
 | `catchments.bin` | Per stop: spiderweb (walk-network edge ids + walk times) and blob (20 cumulative polygons), in one binary file with a JSON index of byte ranges; layout documented at `CATCH_FILE` in export.py | `export.catchments` |
 | `network.pmtiles` | `walk` (edges, feature id = `staging.osm_edges.id`), `crossings` | tippecanoe |
 | `generators.pmtiles` | `hex`, `pois`, `platforms`, `routes` (GTFS shapes run on the representative days) | tippecanoe |

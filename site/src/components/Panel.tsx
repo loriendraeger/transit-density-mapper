@@ -8,6 +8,8 @@ import {
   GENERATOR_LABELS,
   GENERATORS,
   MODE,
+  RIDERS_BREAKS,
+  RIDERS_RAMP,
   SCORE_BREAKS,
   SCORE_RAMP,
 } from '../map/colors'
@@ -38,9 +40,14 @@ import { pathFor } from '../state/url'
 import Settings from './Settings'
 import StopDetail from './StopDetail'
 
-function Legend(props: { ramp: string[]; breaks: readonly number[]; unit: string }): JSX.Element {
+function Legend(props: {
+  ramp: string[]
+  breaks: readonly number[]
+  unit: string
+  format?: (v: number) => string
+}): JSX.Element {
   function f(v: number): string {
-    return v.toLocaleString('en-US')
+    return props.format ? props.format(v) : v.toLocaleString('en-US')
   }
   // ramp has one more class than breaks: < b0, b0-b1, ..., >= b_last.
   function labels(): string[] {
@@ -103,17 +110,30 @@ function Layers(): JSX.Element {
         >
           <option value="score">Catchment score</option>
           <option value="freq">Trips per hour</option>
+          <option value="riders">Riders vs. expected</option>
         </select>
       </label>
-      <Legend
-        ramp={SCORE_RAMP[MODE]}
-        breaks={stopColor() === 'score' ? SCORE_BREAKS : FREQ_BREAKS}
-        unit={
-          stopColor() === 'score'
-            ? 'Score (0–100). Circle size: trips per hour.'
-            : 'Trips per hour. Circle size: trips per hour.'
+      <Show
+        when={stopColor() === 'riders'}
+        fallback={
+          <Legend
+            ramp={SCORE_RAMP[MODE]}
+            breaks={stopColor() === 'score' ? SCORE_BREAKS : FREQ_BREAKS}
+            unit={
+              stopColor() === 'score'
+                ? 'Score (0–100). Circle size: trips per hour.'
+                : 'Trips per hour. Circle size: trips per hour.'
+            }
+          />
         }
-      />
+      >
+        <Legend
+          ramp={RIDERS_RAMP[MODE]}
+          breaks={RIDERS_BREAKS}
+          format={(v) => ({ 0.25: '¼', 0.5: '½', 1.25: '1¼' })[v] ?? String(v)}
+          unit="Times as many weekday riders (Feb 2024) as the fitted model expects from the stop's catchment and service. Red: fewer; gray: about as expected; blue: more. Hollow: no ridership figure."
+        />
+      </Show>
       <h3 class="subhead">Trip generators</h3>
       <p class="hint">
         Pick one or more: with two, each hexagon splits in half (left, right); with three, into

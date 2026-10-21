@@ -71,6 +71,8 @@ import {
   INK_2,
   MODE,
   neutralFlavor,
+  RIDERS_BREAKS,
+  RIDERS_RAMP,
   SCORE_BREAKS,
   SCORE_RAMP,
   stepExpr,
@@ -87,6 +89,11 @@ interface StopProps {
   score: number
   freq: number
   r: number
+  /** Riders vs. expected; 0 when the stop has no ridership figure (has_riders false). */
+  ratio: number
+  has_riders: boolean
+  observed: number
+  expected: number
 }
 
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
@@ -402,7 +409,10 @@ export default function MapView(): JSX.Element {
       popup
         .setLngLat(geom.coordinates as [number, number])
         .setHTML(
-          `<strong>${escapeHtml(p.name)}</strong><br>Score ${fmt(p.score, 0)} · ${fmt(p.freq, 1)} trips/h`,
+          `<strong>${escapeHtml(p.name)}</strong><br>Score ${fmt(p.score, 0)} · ${fmt(p.freq, 1)} trips/h` +
+            (p.has_riders
+              ? `<br>${fmt(p.observed, 0)} riders/weekday · ${fmt(p.expected, 0)} expected`
+              : ''),
         )
         .addTo(m)
     })
@@ -425,6 +435,8 @@ export default function MapView(): JSX.Element {
     }
     const stopsSrc: GeoJSONSource = maybeStops
     const blobSrc: GeoJSONSource = maybeBlob
+    const ink2 = INK_2[mode]
+    const surface = SURFACE[mode]
 
     // Fit the stops once they arrive (unless a stop is selected: the fly handles that).
     createEffect(
@@ -457,6 +469,10 @@ export default function MapView(): JSX.Element {
           freq: s.freq,
           // Radius grows with the square root of frequency, so area tracks trips/hour.
           r: 3 + 2 * Math.sqrt(s.freq),
+          ratio: s.riders ?? 0,
+          has_riders: s.stop.riders !== null,
+          observed: s.stop.riders?.observed ?? 0,
+          expected: s.stop.riders?.expected ?? 0,
         } satisfies StopProps,
       }))
       // Busiest stops draw last (on top).
@@ -464,7 +480,28 @@ export default function MapView(): JSX.Element {
       void stopsSrc.setData({ type: 'FeatureCollection', features })
     })
     createEffect(() => {
-      const byFreq = stopColor() === 'freq'
+      const by = stopColor()
+      const selected: ExpressionSpecification = ['boolean', ['feature-state', 'selected'], false]
+      const ink = mode === 'dark' ? '#f0efec' : '#0b0b0b'
+      if (by === 'riders') {
+        // Stops without a ridership figure are hollow (surface fill, ink outline).
+        m.setPaintProperty('stops', 'circle-color', [
+          'case',
+          ['get', 'has_riders'],
+          stepExpr(['get', 'ratio'], RIDERS_RAMP[mode], RIDERS_BREAKS),
+          surface,
+        ])
+        m.setPaintProperty('stops', 'circle-stroke-color', [
+          'case',
+          selected,
+          ink,
+          ['get', 'has_riders'],
+          surface,
+          ink2,
+        ])
+        return
+      }
+      const byFreq = by === 'freq'
       m.setPaintProperty(
         'stops',
         'circle-color',
@@ -474,6 +511,7 @@ export default function MapView(): JSX.Element {
           byFreq ? FREQ_BREAKS : SCORE_BREAKS,
         ),
       )
+      m.setPaintProperty('stops', 'circle-stroke-color', ['case', selected, ink, surface])
     })
 
     // Selected stop's ring.

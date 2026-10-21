@@ -47,6 +47,25 @@ function Meter(props: { label: string; value: number; detail: string }): JSX.Ele
   )
 }
 
+const SPECIAL_LABELS: Record<string, string> = {
+  school: 'school',
+  campus: 'campus',
+  park_ride: 'park-and-ride',
+  airport: 'airport',
+  transfer: 'transfer point',
+}
+
+/** ×21 more / ×0.1 = 10 times fewer / about as expected. */
+function ratioText(x: number): string {
+  if (x >= 1.25) {
+    return `${fmt(x, x < 10 ? 1 : 0)}× more than expected`
+  }
+  if (x <= 0.8) {
+    return `${fmt(1 / x, 1 / x < 10 ? 1 : 0)}× fewer than expected`
+  }
+  return 'about as expected'
+}
+
 export default function StopDetail(props: { s: Scored }): JSX.Element {
   const [day, setDay] = createSignal<DayType>('weekday')
   const routes = createMemo(() => new Map((data()?.routes ?? []).map((r) => [r.id, r])))
@@ -112,6 +131,34 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
           </span>
         </div>
       </div>
+
+      <Show when={stop().riders}>
+        {(r) => (
+          <>
+            <h2>Riders vs. expected</h2>
+            <p>
+              <strong>{fmt(r().observed, 0)}</strong> weekday boardings (February 2024); the fitted
+              model expects <strong>{fmt(r().expected, 0)}</strong> from this stop's catchment and
+              service ({ratioText(props.s.riders ?? 1)}).
+            </p>
+            <Show when={stop().special.length}>
+              <p class="hint">
+                Special stop (
+                {stop()
+                  .special.map((s) => SPECIAL_LABELS[s] ?? s)
+                  .join(', ')}
+                ): riders come for more than what's within walking distance, so it was left out of
+                the fit.
+              </p>
+            </Show>
+            <p class="hint">
+              Expected = fitted weights and decay (not the sliders) × weekday trips/hour. 2024
+              ridership predates the BRT (Sept 2024), so stops whose service changed since may be
+              off.
+            </p>
+          </>
+        )}
+      </Show>
 
       <h2>What's within {walkMin()} minutes</h2>
       <Meter

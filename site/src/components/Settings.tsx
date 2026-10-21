@@ -3,8 +3,10 @@ import { For, type JSX, Show } from 'solid-js'
 import { type Period, PERIODS } from '../lib/contract'
 import { type DecayKind, DECAYS, decayWeight } from '../lib/scoring'
 import {
+  applyFit,
   data,
   decay,
+  fitActive,
   period,
   periodWeights,
   setDecay,
@@ -140,6 +142,21 @@ export default function Settings(): JSX.Element {
       <p class="hint">{DECAYS[decay().kind].hint}</p>
 
       <h2>Score weights</h2>
+      <Show when={data()?.settings.fit}>
+        {(f) => (
+          <div class="fit-preset">
+            <button type="button" class="primary" onClick={applyFit} disabled={fitActive()}>
+              {fitActive() ? 'Using fitted settings' : 'Use settings fitted to ridership'}
+            </button>
+            <p class="hint">
+              Population {f().weights.pop}, jobs {f().weights.jobs}, destinations {f().weights.dest}
+              ; {f().walk_min} min walk, {f().decay.param} min half-life. Fit to weekday boardings
+              per trip at {f().n_fit} stops (Feb 2024); explains {Math.round(f().cv_r2 * 100)} % of
+              the variation (cross-validated). See About.
+            </p>
+          </div>
+        )}
+      </Show>
       <Slider
         label="Population"
         value={weights().pop}

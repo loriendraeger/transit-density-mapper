@@ -96,6 +96,40 @@ export default function About(): JSX.Element {
         within reach of several stops count for each of them.
       </p>
 
+      <h2>Checked against ridership</h2>
+      <Show when={data()?.settings.fit}>
+        {(f) => (
+          <>
+            <p>
+              The default weights are guesses. To test them, the score is compared with weekday
+              boardings at each stop (Greater Madison MPO, February 2024, estimated from farebox and
+              bus-location records). Boardings depend heavily on how often the bus comes, so the fit
+              uses <em>boardings per trip</em>: the score's own formula (a weighted sum of the
+              catchment totals, plus a constant) fit on a log scale, with the decay half-life and
+              walk limit searched minute by minute. This is a simple form of the{' '}
+              <em>direct ridership model</em> transit agencies use.
+            </p>
+            <p>
+              Best fit: population {f().weights.pop}, jobs {f().weights.jobs}, destinations{' '}
+              {f().weights.dest}, a {f().walk_min}-minute walk limit and a {f().decay.param}
+              -minute half-life. It explains {Math.round(f().cv_r2 * 100)} % of the variation in
+              boardings per trip across {f().n_fit} stops (cross-validated): the catchment matters,
+              but most of what makes a stop busy is elsewhere, above all where its buses go.
+              Schools, campus, park-and-rides, the airport and transfer points (5+ routes) draw
+              riders a walkshed can't see, so they were left out of the fit.
+            </p>
+            <p>
+              <strong>Riders vs. expected</strong> (a stop color option) divides each stop's
+              boardings by the fit's expectation from its catchment and service. Far fewer riders
+              than expected can mean a stop crowded by a neighbor, a route that goes nowhere useful,
+              or a barrier the walk model misses; far more, a draw the catchment doesn't count.
+              Caveats: the ridership predates the BRT (September 2024), and service has partly gone
+              where riders already were, so frequency also stands in for demand.
+            </p>
+          </>
+        )}
+      </Show>
+
       <h2>Sources</h2>
       <Show when={data()}>
         {(d) => (

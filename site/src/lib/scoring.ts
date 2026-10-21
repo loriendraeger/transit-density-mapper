@@ -87,6 +87,8 @@ export interface Scored {
   score: number
   /** Trips per hour in the chosen period (per direction, all routes). */
   freq: number
+  /** Observed / expected weekday boardings (ridersRatio); null without data. */
+  riders: number | null
   rank: number
 }
 
@@ -107,6 +109,13 @@ export function rawComponents(stop: Stop, bw: number[], weights: Weights): Compo
     dest += v
   }
   return { pop: sum('pop'), jobs: sum('jobs'), dest, categories }
+}
+
+/** Observed / expected weekday boardings, smoothed by k so stops with a handful of
+ * riders stay near 1; null without ridership data. */
+export function ridersRatio(stop: Stop, k: number): number | null {
+  const r = stop.riders
+  return r ? (r.observed + k) / (r.expected + k) : null
 }
 
 /** Trips per hour at a stop for one period: each route's directions averaged, summed. */
@@ -148,7 +157,8 @@ export function scoreAll(data: StopsFile, s: Settings): Scored[] {
       dest: (100 * raw.dest) / mDest,
     }
     const score = wSum > 0 ? (w.pop * norm.pop + w.jobs * norm.jobs + w.dest * norm.dest) / wSum : 0
-    return { stop, raw, norm, score, freq: stopFreq(stop, s), rank: 0 }
+    const riders = ridersRatio(stop, data.settings.fit.ratio_k)
+    return { stop, raw, norm, score, freq: stopFreq(stop, s), riders, rank: 0 }
   })
   const order = [...scored].sort((a, b) => b.score - a.score)
   order.forEach((x, i) => {

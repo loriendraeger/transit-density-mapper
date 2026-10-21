@@ -56,7 +56,8 @@ export default function StopsView(): JSX.Element {
         />
         <p class="hint">
           Population, jobs and destinations are 0–100 against the best stop. Trips/h is per
-          direction: each route's directions averaged, summed over routes.
+          direction: each route's directions averaged, summed over routes. Riders ÷ exp. = weekday
+          boardings (Feb 2024) ÷ what the ridership-fitted model expects.
         </p>
       </main>
       <Show when={selected()}>

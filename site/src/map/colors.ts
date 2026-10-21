@@ -13,6 +13,10 @@ export const MODE: Mode = window.matchMedia('(prefers-color-scheme: dark)').matc
 //                  recede into the surface by design): population blue, jobs green,
 //                  destinations yellow (owner's picks)
 //   catchment      violet (categorical slot 7): blob and spiderweb of the selected stop
+//   riders vs.     diverging red (fewer riders than expected) <-> gray <-> blue (more),
+//   expected       3 steps per arm. Blue/red is the colorblind-safe diverging axis; it
+//                  shares blue with population, but stops are outlined circles above
+//                  the hexes, and the score's orange isn't shown at the same time.
 
 /** Stop score ramp, low -> high. Dark mode: low recedes into the dark surface. */
 export const SCORE_RAMP: Record<Mode, string[]> = {
@@ -50,6 +54,14 @@ export const CATCHMENT: Record<Mode, string> = { light: '#6250d6', dark: '#9085e
 
 export const SURFACE: Record<Mode, string> = { light: '#fcfcfb', dark: '#1a1a19' }
 export const INK_2: Record<Mode, string> = { light: '#52514e', dark: '#c3c2b7' }
+
+/** Riders vs. expected, fewer -> more: 3 red steps, gray (about as expected), 3 blue. */
+export const RIDERS_RAMP: Record<Mode, string[]> = {
+  light: ['#9a2929', '#d74745', '#ed8c84', '#b4b3ab', '#86b6ef', '#3987e5', '#1c5cab'],
+  dark: ['#eb827b', '#c04442', '#8c2d2b', '#5f5e59', '#184f95', '#256abf', '#5598e7'],
+}
+/** Ratio breaks (observed / expected): x1/4, x1/2, x0.8 | x1.25, x2, x4. */
+export const RIDERS_BREAKS = [0.25, 0.5, 0.8, 1.25, 2, 4]
 
 /** Class breaks for the score ramp (0-100). */
 export const SCORE_BREAKS = [20, 40, 60, 80]

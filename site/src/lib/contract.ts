@@ -38,6 +38,24 @@ export interface Stop {
   hourly: Record<DayType, number[]>
   /** Totals per walk-time band (band i = (i, i+1] minutes), by measure id. */
   bands: Record<string, number[]>
+  /** Weekday boardings (MPO, Feb 2024) and the fitted model's expectation (fitted
+   * catchment x frequency); null where the stop has no ridership figure. */
+  riders: { observed: number; expected: number } | null
+  /** Why the stop was left out of the fit: school, campus, park_ride, airport, transfer. */
+  special: string[]
+}
+
+/** Score settings fit to observed boardings (pipeline fit.py). */
+export interface FitSettings {
+  walk_min: number
+  decay: { kind: 'exponential'; param: number }
+  weights: { pop: number; jobs: number; dest: number }
+  /** R² of log boardings per trip/h, in-sample and cross-validated. */
+  r2: number
+  cv_r2: number
+  n_fit: number
+  /** Riders vs. expected = (observed + k) / (expected + k). */
+  ratio_k: number
 }
 
 export interface PeriodSetting {
@@ -64,6 +82,7 @@ export interface StopsFile {
     band_min: number
     cluster_max_diameter_m: number
     periods: Record<Period, PeriodSetting>
+    fit: FitSettings
   }
   sources: Record<string, Source>
   measures: Measure[]
