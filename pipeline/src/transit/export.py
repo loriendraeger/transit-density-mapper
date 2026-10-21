@@ -229,6 +229,7 @@ def stops_json() -> None:
                 "attribution": s.get("attribution", ""),
             }
             for name, s in src.items()
+            if s.get("purpose") != "validation"
         },
         "measures": measures,
         "poi_kinds": pois,

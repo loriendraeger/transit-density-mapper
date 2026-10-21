@@ -112,6 +112,7 @@ URLs, layers, fields, licenses and recon findings live in `config/sources.toml`.
 | **City of Madison tax parcels** (ArcGIS service) | Dwelling units per parcel (`TotalDwellingUnits`) |
 | **WI Statewide Parcel Map V12** | Parcels outside Madison (no unit count) |
 | **Protomaps** daily build | Basemap |
+| **MPO Metro Ridership by Stop** (Feb 2024, City open data) | Validation only (`make validate`), not on the site |
 
 ## Architecture
 
@@ -156,7 +157,8 @@ exports in EPSG:4326.
 │   │   ├── 50_reach/         # per-edge walk times (after `transit reach`)
 │   │   ├── 55_catchments/    # generator walk times, banded totals
 │   │   ├── 60_export_network/      # network.pmtiles views
-│   │   └── 61_export_generators/   # generators.pmtiles views
+│   │   ├── 61_export_generators/   # generators.pmtiles views
+│   │   └── 70_validation/    # ridership joined to merged stops (`make validate` only)
 │   └── tests/                # pytest data checks (run after the pipeline)
 ├── data/                     # raw/ and build/ (gitignored)
 └── site/                     # Vite + Solid app; public/data/ is gitignored for now
@@ -273,6 +275,24 @@ exports in EPSG:4326.
 - Colors (`map/colors.ts`, checked with the dataviz validator, light and dark): orange
   for scores; blue, green, yellow for the three generators; violet for catchments.
 
+### Validation against ridership (2026-10-20)
+
+`make validate` (not part of `make`) downloads the MPO's weekday boardings per stop
+(February 2024, farebox + AVL estimates), matches them to platforms (by stop code within
+50 m, else nearest platform within 30 m; 96 % of boardings match), sums per merged
+stop, and writes `data/build/validation/ridership.md` (`validate.py`): Spearman
+correlations, a log-log direct ridership model and the biggest residuals, with the
+score recomputed at the site defaults. Sources marked `purpose = "validation"` in
+`sources.toml` are skipped by the default download/load and the site's source list.
+
+First results: score vs. boardings ρ = 0.52 (destinations 0.46, jobs 0.40, population
+0.39); frequency alone ρ = 0.77, R² 0.64 on log scales, and the catchment adds little
+on top (R² 0.66; elasticities: frequency 1.7, destinations 0.18, population 0.12, jobs
+≈ 0). Caveats: frequency is partly circular (service goes where riders are); 2024
+boardings vs. 2026 service (BRT opened in between); over-performers are what a walk
+catchment can't see: high schools, Epic, the airport, park-and-rides, campus
+(Langdon & N Park).
+
 ## Testing
 
 `make test` (after `make catchments`): pytest data checks in `pipeline/tests/`: every
@@ -334,7 +354,7 @@ Things learned the hard way; check these before debugging the same problem again
 - **A critique of the analysis's assumptions** is in `docs/assumptions-critique.md`
   (owner's local notes, deliberately not committed; may be missing in a fresh clone).
   Its top suggestions: validate the score against stop-level boardings and fit the
-  weights; use current dwelling units for population and add ACS zero-car households;
+  weights (validation done 2026-10-20, see above; fitting not started); use current dwelling units for population and add ACS zero-car households;
   per-direction frequency instead of the ×2 rule (done 2026-10-20); separate
   origin/destination scores and a stop-overlap view.
 - **Faster blobs (offered, not done)**: build each band from the previous band plus the

@@ -96,7 +96,9 @@ def load_lodes(src: dict) -> None:
 
 def load(names: list[str] | None = None) -> None:
     sources = {k: v for k, v in config.sources().items() if v.get("table")}
-    for name in names or list(sources):
+    # By default, everything the site is built from; validation data loads on request.
+    default = [k for k, v in sources.items() if v.get("purpose") != "validation"]
+    for name in names or default:
         src = sources[name]
         path = config.REPO / src["local_path"]
         if not path.exists():

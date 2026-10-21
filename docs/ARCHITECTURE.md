@@ -38,6 +38,7 @@ including the load is under 2.5 minutes.
 | `export` | `sql/60_export_network`, `sql/61_export_generators`, then `transit tiles network`, `transit tiles generators`, `transit stops-json`, `transit catchments` (export.py) | `[tiles]`, `[frequency]`, `[catchments]`... | `site/public/data/` |
 | `basemap` | `transit basemap` | Protomaps build (HTTP) | `site/public/data/basemap.pmtiles` |
 | `test` | pytest `pipeline/tests/` | | |
+| `validate` (not in `make`) | `transit download/load ridership`, `sql/70_validation`, `transit validate` (validate.py) | `[ridership]` in `sources.toml`, `[frequency]`, `[walk]` | `valid.*`, `data/build/validation/ridership.md` |
 
 The output is deterministic (sums in `numeric`, ordered inputs and views): two runs give
 byte-identical files, so a refactor can be checked with checksums.
@@ -58,6 +59,7 @@ byte-identical files, so a refactor can be checked with checksums.
 - `gen`: `parcel_units`, `population`, `jobs`, `pois`, `poi_points`, `points` (all
   generators), `snap` (point -> edge), `hex`.
 - `catch`: `reach` (stop × vertex × seconds), `edge_time` (reach stage); `gen_time`, `bands` (catchments stage).
+- `valid`: `ridership` (MPO stops matched to platforms), `cluster_ridership`.
 - `export`: views that become tile layers (`walk`, `crossings`, `hex`, `pois`,
   `platforms`).
 

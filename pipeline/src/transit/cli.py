@@ -10,6 +10,7 @@ from . import load as load_mod
 from . import reach as reach_mod
 from . import sqlrun
 from . import stops as stops_mod
+from . import validate as validate_mod
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 
@@ -91,6 +92,12 @@ def catchments():
 def basemap():
     """Extract the study-area basemap from the Protomaps build in sources.toml."""
     export_mod.basemap()
+
+
+@app.command()
+def validate():
+    """Compare the catchment score with observed boardings (after `sql 70_validation`)."""
+    validate_mod.validate()
 
 
 if __name__ == "__main__":

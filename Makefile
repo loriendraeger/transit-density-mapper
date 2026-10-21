@@ -35,7 +35,7 @@ _ := $(shell sh pipeline/deps.sh)
 
 .PHONY: all db-up tools-up db-down db-reset psql image download init load staging network \
         stops generators reach catchments views-network views-generators export \
-        network-tiles generators-tiles stops-json catchments-bin basemap test lint site
+        network-tiles generators-tiles stops-json catchments-bin basemap validate test lint site
 
 all: export
 
@@ -127,6 +127,14 @@ stops-json: catchments | tools-up
 catchments-bin: reach | tools-up
 	$(STAGE) catchments-bin '$(RUN) catchments' $(S)/reach $(D)/toml.catchments \
 	    $(D)/toml.walk $(D)/toml.analysis $(call PY,export) out:$(OUT)/catchments.bin
+
+# Not part of `make`: score vs. observed boardings (the MPO ridership download is only
+# fetched and loaded here). Report: data/build/validation/ridership.md.
+validate: catchments | tools-up
+	$(STAGE) validate '$(RUN) download ridership && $(RUN) load ridership && \
+	    $(RUN) sql 70_validation && $(RUN) validate' $(S)/catchments config/sources.toml \
+	    $(call SQL,70_validation) $(call PY,validate) $(call PY,load) $(call PY,download) \
+	    $(D)/toml.frequency $(D)/toml.walk $(COMMON) out:data/build/validation/ridership.md
 
 basemap: | tools-up
 	$(RUN) basemap
