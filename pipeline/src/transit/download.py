@@ -53,10 +53,5 @@ def download_source(name: str, src: dict, force: bool = False) -> None:
 
 def download(names: list[str] | None = None, force: bool = False) -> None:
     sources = config.sources()
-    default = [
-        n
-        for n, s in sources.items()
-        if s.get("fetch", "manual") != "manual" and s.get("purpose") != "validation"
-    ]
-    for name in names or default:
+    for name in names or [n for n, s in sources.items() if s.get("fetch", "manual") != "manual"]:
         download_source(name, sources[name], force)

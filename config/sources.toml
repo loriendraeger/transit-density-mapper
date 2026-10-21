@@ -19,8 +19,6 @@
 #   retrieved   date downloaded for the current build (YYYY-MM-DD)
 #   verified    true once inspected during recon
 #   notes       recon findings
-#   purpose     "validation": used only by `make validate` (not loaded by `make`, not
-#               listed on the site)
 
 [gtfs]
 name = "Madison Metro Transit GTFS"
@@ -194,15 +192,14 @@ fetch = "arcgis"
 local_path = "data/raw/ridership/ridership_by_stop.gpkg"
 format = "gpkg"
 table = "ridership"
-purpose = "validation"
 crs = "EPSG:4326"
 license = "City of Madison Data Policy (https://www.cityofmadison.com/policy/data): provided for informational purposes, no warranty, no attribution requirement."
 attribution = "Greater Madison MPO, Metro Transit ridership by stop (February 2024)"
 retrieved = "2026-10-20"
 verified = false
 notes = """
-Used only to validate the catchment score (pipeline/sql/70_validation, `transit
-validate`); not shown on the site. Average weekday boardings per stop from a 19-day
+Calibrates the catchment score (pipeline/sql/70_validation, `transit fit`): fitted
+weights and each stop's observed vs. expected boardings. Average weekday boardings per stop from a 19-day
 sample of farebox records and AVL logs (estimated stop per fare transaction); excludes
 school-day supplemental routes and paratransit. Fields: Weekday (total), one column per
 route (A, B, ..., F28...), stop_code, stop_name, stop_lat/lon. The publisher cautions

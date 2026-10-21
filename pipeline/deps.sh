@@ -17,7 +17,7 @@ put() {  # put <name>: stdin -> $out/<name>
     cat > "$out/$1"
 }
 
-for s in study_area analysis stops frequency walk generators catchments tiles; do
+for s in study_area analysis stops frequency walk generators catchments tiles ridership; do
     awk -v s="$s" '
         /^\[/ { name = $0; gsub(/^\[|\]$/, "", name); f = (name == s || index(name, s ".") == 1); next }
         f

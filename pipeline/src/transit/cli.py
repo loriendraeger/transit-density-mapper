@@ -6,11 +6,11 @@ import typer
 
 from . import download as download_mod
 from . import export as export_mod
+from . import fit as fit_mod
 from . import load as load_mod
 from . import reach as reach_mod
 from . import sqlrun
 from . import stops as stops_mod
-from . import validate as validate_mod
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 
@@ -95,9 +95,10 @@ def basemap():
 
 
 @app.command()
-def validate():
-    """Compare the catchment score with observed boardings (after `sql 70_validation`)."""
-    validate_mod.validate()
+def fit():
+    """Fit the score to observed boardings (after `sql 70_validation`): valid.fit_params,
+    valid.stop_fit and data/build/validation/ridership.md."""
+    fit_mod.fit()
 
 
 if __name__ == "__main__":

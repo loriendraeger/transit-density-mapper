@@ -154,6 +154,8 @@ def stops_json() -> None:
             c["freq"] = {}
             c["hourly"] = {d: [0] * HOURS for d in DAY_TYPES}
             c["bands"] = {m: [0] * n_bands for m in measure_ids}
+            c["riders"] = None
+            c["special"] = []
         for r in conn.execute(
             "SELECT cluster_id, period, route_id, trips_per_hour FROM transit.period_freq"
         ):
@@ -169,6 +171,25 @@ def stops_json() -> None:
             if c is not None and r["hour"] < HOURS:
                 c["hourly"][r["day_type"]][r["hour"]] = r["n"]
                 c["routes"] = sorted(set(c["routes"]) | set(r["routes"]))
+        # Observed vs. expected weekday boardings (fit.py) and special-stop reasons.
+        for r in conn.execute(
+            "SELECT f.cluster_id, f.boardings, f.expected, f.in_fit, s.reasons "
+            "FROM valid.stop_fit f LEFT JOIN valid.special s USING (cluster_id)"
+        ):
+            c = by_id.get(r["cluster_id"])
+            if c is not None:
+                c["riders"] = (
+                    None
+                    if r["boardings"] is None
+                    else {
+                        "observed": round(r["boardings"], 1),
+                        "expected": round(r["expected"], 1),
+                    }
+                )
+                c["special"] = r["reasons"] or []
+        fit = {
+            r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM valid.fit_params")
+        }
         for r in conn.execute("SELECT cluster_id, band, measure, value FROM catch.bands"):
             c = by_id.get(r["cluster_id"])
             if c is not None and r["band"] <= n_bands:
@@ -198,6 +219,16 @@ def stops_json() -> None:
             "max_walk_min": p["walk"]["max_walk_min"],
             "band_min": p["walk"]["band_min"],
             "cluster_max_diameter_m": p["stops"]["cluster_max_diameter_m"],
+            # Score settings fit to observed boardings (fit.py): the site's preset.
+            "fit": {
+                "walk_min": int(fit["walk_min"]),
+                "decay": {"kind": "exponential", "param": fit["half_life"]},
+                "weights": {"pop": fit["w_pop"], "jobs": fit["w_jobs"], "dest": fit["w_dest"]},
+                "r2": round(fit["r2"], 3),
+                "cv_r2": round(fit["cv_r2"], 3),
+                "n_fit": int(fit["n_fit"]),
+                "ratio_k": fit["ratio_k"],
+            },
             "periods": {
                 "peak": {
                     "day_type": "weekday",
@@ -229,7 +260,6 @@ def stops_json() -> None:
                 "attribution": s.get("attribution", ""),
             }
             for name, s in src.items()
-            if s.get("purpose") != "validation"
         },
         "measures": measures,
         "poi_kinds": pois,

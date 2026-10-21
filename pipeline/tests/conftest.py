@@ -5,7 +5,7 @@ import pytest
 @pytest.fixture(scope="session")
 def db():
     """The pipeline database (PG* env vars). Tests read the analysis tables, so run them
-    after `make catchments`."""
+    after `make` (or at least `make fit`)."""
     with psycopg.connect("") as conn:
         yield conn
 

@@ -100,3 +100,23 @@ def test_arterial_crossings_need_a_crossing(db):
     assert (
         scalar(db, "SELECT count(*) FROM net.base_edges WHERE kind = 'cross' AND control < 2") == 0
     )
+
+
+def test_ridership_mostly_matched(db):
+    """Most 2024 boardings land on a current platform (the rest: closed or moved stops)."""
+    share = scalar(
+        db,
+        "SELECT sum(boardings) FILTER (WHERE stop_id IS NOT NULL) / sum(boardings) "
+        "FROM valid.ridership",
+    )
+    assert share > 0.9
+
+
+def test_fit_is_usable(db):
+    """The fitted settings fall inside the site's slider ranges (largest weight at the
+    top), and the cross-validated fit is positive but not better than in-sample."""
+    p = dict(db.execute("SELECT key, value FROM valid.fit_params").fetchall())
+    assert 5 <= p["walk_min"] <= 20 and 1 <= p["half_life"] <= 20
+    assert all(0 <= p[k] <= 5 for k in ("w_pop", "w_jobs", "w_dest"))
+    assert max(p["w_pop"], p["w_jobs"], p["w_dest"]) == 5
+    assert 0 < p["cv_r2"] <= p["r2"] < 1

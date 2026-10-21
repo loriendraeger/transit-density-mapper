@@ -3,8 +3,9 @@
 #
 #   download -> load -> staging -> network -> stops -> generators ----> catchments
 #                                                \-> reach ----------/      |
+#                                                                          fit (ridership)
 #   exports: network.pmtiles (network), generators.pmtiles (generators),
-#            stops.json (catchments), catchments.bin (reach)
+#            stops.json (catchments, fit), catchments.bin (reach)
 #
 # Make only orders the steps; whether a step runs is decided by content hashes, not
 # file timestamps. Each step goes through pipeline/stage.sh with its inputs: its SQL and
@@ -34,8 +35,8 @@ COMMON  := $(call PY,config) $(call PY,sqlrun)
 _ := $(shell sh pipeline/deps.sh)
 
 .PHONY: all db-up tools-up db-down db-reset psql image download init load staging network \
-        stops generators reach catchments views-network views-generators export \
-        network-tiles generators-tiles stops-json catchments-bin basemap validate test lint site
+        stops generators reach catchments fit views-network views-generators export \
+        network-tiles generators-tiles stops-json catchments-bin basemap test lint site
 
 all: export
 
@@ -99,6 +100,14 @@ catchments: reach generators | tools-up
 	$(STAGE) catchments '$(RUN) sql 55_catchments' $(S)/reach $(S)/generators \
 	    $(call SQL,55_catchments) $(D)/toml.walk $(COMMON)
 
+# Observed boardings matched to stops, special stops flagged, then the score's weights
+# fit to them. Report: data/build/validation/ridership.md.
+fit: catchments | tools-up
+	$(STAGE) fit '$(RUN) sql 70_validation && $(RUN) fit' $(S)/catchments \
+	    $(call SQL,70_validation) $(call PY,fit) config/special_stops.csv \
+	    $(D)/toml.ridership $(D)/toml.frequency $(D)/toml.walk $(COMMON) \
+	    out:data/build/validation/ridership.md
+
 # Export views, one SQL stage per tile file (dropping tables upstream drops views).
 views-network: network | tools-up
 	$(STAGE) views-network '$(RUN) sql 60_export_network' $(S)/network \
@@ -119,22 +128,14 @@ generators-tiles: views-generators | tools-up
 	$(STAGE) generators-tiles '$(RUN) tiles generators' $(S)/views-generators \
 	    $(D)/toml.tiles $(call PY,export) out:$(OUT)/generators.pmtiles
 
-stops-json: catchments | tools-up
-	$(STAGE) stops-json '$(RUN) stops-json' $(S)/catchments config/sources.toml \
+stops-json: catchments fit | tools-up
+	$(STAGE) stops-json '$(RUN) stops-json' $(S)/catchments $(S)/fit config/sources.toml \
 	    $(D)/toml.frequency $(D)/toml.walk $(D)/toml.stops $(call PY,export) \
 	    out:$(OUT)/stops.json
 
 catchments-bin: reach | tools-up
 	$(STAGE) catchments-bin '$(RUN) catchments' $(S)/reach $(D)/toml.catchments \
 	    $(D)/toml.walk $(D)/toml.analysis $(call PY,export) out:$(OUT)/catchments.bin
-
-# Not part of `make`: score vs. observed boardings (the MPO ridership download is only
-# fetched and loaded here). Report: data/build/validation/ridership.md.
-validate: catchments | tools-up
-	$(STAGE) validate '$(RUN) download ridership && $(RUN) load ridership && \
-	    $(RUN) sql 70_validation && $(RUN) validate' $(S)/catchments config/sources.toml \
-	    $(call SQL,70_validation) $(call PY,validate) $(call PY,load) $(call PY,download) \
-	    $(D)/toml.frequency $(D)/toml.walk $(COMMON) out:data/build/validation/ridership.md
 
 basemap: | tools-up
 	$(RUN) basemap

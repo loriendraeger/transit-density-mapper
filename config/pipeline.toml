@@ -116,3 +116,20 @@ maxzoom = 15
 layers = ["hex", "hex_parts", "pois", "platforms", "routes"]
 minzoom = 10
 maxzoom = 15
+
+[ridership]
+# Observed boardings (MPO, sources.toml [ridership]) calibrate the score: `transit fit`
+# fits the site's score formula (weights on population, jobs, destinations and the
+# decay half-life / walk limit) to boardings per trip, and each stop gets a predicted
+# count to compare with what it gets.
+# Special stops draw riders a walk catchment can't see; they're left out of the fit
+# (and still get a prediction). Flagged automatically, fixes in config/special_stops.csv:
+special_school_m = 150          # within this of a middle/high school (OSM), or named for one
+special_park_ride_m = 150       # within this of a park_ride lot (OSM), or named so
+special_transfer_min_routes = 5 # transfer point: this many routes or more
+# Stops below this weekday frequency (trips/h per direction) are left out of the fit:
+# boardings per trip get noisy when there are only a few trips.
+fit_min_freq = 0.5
+# Search ranges (minutes, whole minutes) for the exponential half-life and walk limit.
+fit_half_life_range = [1, 20]
+fit_walk_min_range = [5, 20]
