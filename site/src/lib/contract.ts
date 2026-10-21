@@ -31,12 +31,8 @@ export interface Stop {
   stop_ids: string[]
   lon: number
   lat: number
-  /** All departures head one way (one side of a couplet, a terminus...). */
-  one_way: boolean
-  /** Smallest arc (degrees) containing every departure's heading. */
-  spread_deg: number | null
   routes: string[]
-  /** Trips per hour by period and route (one-way factor not applied). */
+  /** Trips per hour by period and route, averaged over the directions it runs here. */
   freq: Partial<Record<Period, Record<string, number>>>
   /** Departures per hour of the service day (0-27, all routes) by day type. */
   hourly: Record<DayType, number[]>
@@ -66,8 +62,6 @@ export interface StopsFile {
     walk_speed_mps: number
     max_walk_min: number
     band_min: number
-    one_way_factor: number
-    one_way_spread_deg: number
     cluster_max_diameter_m: number
     periods: Record<Period, PeriodSetting>
   }

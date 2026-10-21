@@ -5,7 +5,6 @@ import { type DecayKind, DECAYS, decayWeight } from '../lib/scoring'
 import {
   data,
   decay,
-  oneWayFactor,
   period,
   periodWeights,
   setDecay,
@@ -211,8 +210,8 @@ export default function Settings(): JSX.Element {
         )}
       </Show>
       <p class="hint">
-        Stops served in one direction only (one side of a one-way pair like Johnson/Gorham, or the
-        end of a line) count their buses ×{oneWayFactor()}, since the return trip is nearby.
+        Per direction: each route counts the average of its directions at the stop, then routes add
+        up.
       </p>
       <details class="sub">
         <summary>Weighted-week period weights</summary>

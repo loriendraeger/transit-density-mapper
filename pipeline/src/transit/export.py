@@ -142,11 +142,8 @@ def stops_json() -> None:
             """
             SELECT c.cluster_id AS id, c.name, c.stop_codes AS codes, c.stop_ids,
                    round(ST_X(ST_Transform(c.geom, 4326))::numeric, 6)::float8 AS lon,
-                   round(ST_Y(ST_Transform(c.geom, 4326))::numeric, 6)::float8 AS lat,
-                   coalesce(d.one_way, false) AS one_way,
-                   round(d.spread_deg)::int AS spread_deg
+                   round(ST_Y(ST_Transform(c.geom, 4326))::numeric, 6)::float8 AS lat
             FROM transit.clusters c
-            LEFT JOIN transit.directionality d USING (cluster_id)
             WHERE EXISTS (SELECT 1 FROM catch.reach r WHERE r.cluster_id = c.cluster_id)
             ORDER BY c.cluster_id
             """
@@ -200,8 +197,6 @@ def stops_json() -> None:
             "walk_speed_mps": p["walk"]["walk_speed_mps"],
             "max_walk_min": p["walk"]["max_walk_min"],
             "band_min": p["walk"]["band_min"],
-            "one_way_factor": f["one_way_factor"],
-            "one_way_spread_deg": f["one_way_spread_deg"],
             "cluster_max_diameter_m": p["stops"]["cluster_max_diameter_m"],
             "periods": {
                 "peak": {

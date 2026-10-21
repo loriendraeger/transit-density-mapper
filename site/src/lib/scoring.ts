@@ -67,7 +67,6 @@ export interface Settings {
   decay: Decay
   weights: Weights
   period: Period | 'aggregate'
-  oneWayFactor: number
   periodWeights: Record<Period, number>
 }
 
@@ -86,7 +85,7 @@ export interface Scored {
   /** 0-100 against the best stop at the same settings. */
   norm: { pop: number; jobs: number; dest: number }
   score: number
-  /** Trips per hour in the chosen period, one-way factor applied. */
+  /** Trips per hour in the chosen period (per direction, all routes). */
   freq: number
   rank: number
 }
@@ -110,21 +109,20 @@ export function rawComponents(stop: Stop, bw: number[], weights: Weights): Compo
   return { pop: sum('pop'), jobs: sum('jobs'), dest, categories }
 }
 
-/** Trips per hour at a stop for one period, all routes, one-way factor applied. */
-export function periodFreq(stop: Stop, period: Period, oneWayFactor: number): number {
+/** Trips per hour at a stop for one period: each route's directions averaged, summed. */
+export function periodFreq(stop: Stop, period: Period): number {
   const byRoute = stop.freq[period] ?? {}
-  const total = Object.values(byRoute).reduce((a, b) => a + b, 0)
-  return total * (stop.one_way ? oneWayFactor : 1)
+  return Object.values(byRoute).reduce((a, b) => a + b, 0)
 }
 
 export function stopFreq(stop: Stop, s: Settings): number {
   if (s.period !== 'aggregate') {
-    return periodFreq(stop, s.period, s.oneWayFactor)
+    return periodFreq(stop, s.period)
   }
   let num = 0
   let den = 0
   for (const p of PERIODS) {
-    num += s.periodWeights[p] * periodFreq(stop, p, s.oneWayFactor)
+    num += s.periodWeights[p] * periodFreq(stop, p)
     den += s.periodWeights[p]
   }
   return den > 0 ? num / den : 0

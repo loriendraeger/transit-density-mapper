@@ -3,7 +3,7 @@ import { createMemo, createSignal, For, type JSX, Show } from 'solid-js'
 import { DAY_TYPES, type DayType, type Period, PERIODS, type Route } from '../lib/contract'
 import { periodFreq, type Scored } from '../lib/scoring'
 import { compact, fmt, headwayMin } from '../lib/units'
-import { data, oneWayFactor, period, walkMin, weights } from '../state/store'
+import { data, period, walkMin, weights } from '../state/store'
 import HourlyChart from './HourlyChart'
 import { PERIOD_LABELS } from './Settings'
 
@@ -103,39 +103,15 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
             rank {props.s.rank} of {data()?.stops.length ?? 0}
           </span>
         </div>
-        <div class="tile" classList={{ doubled: stop().one_way }}>
+        <div class="tile">
           <span class="tile-label">{PERIOD_LABELS[period()]}</span>
-          <span class="tile-value">
-            {fmt(props.s.freq, 1)}
-            <Show when={stop().one_way}>
-              <span class="badge">×{oneWayFactor()}</span>
-            </Show>
-          </span>
+          <span class="tile-value">{fmt(props.s.freq, 1)}</span>
           <span class="hint">
-            trips/hour
-            <Show
-              when={stop().one_way}
-              fallback={
-                <Show when={headwayMin(props.s.freq)}>
-                  {(h) => <> · every {fmt(h(), 0)} min</>}
-                </Show>
-              }
-            >
-              {' '}
-              (scheduled {fmt(props.s.freq / oneWayFactor(), 1)})
-            </Show>
+            trips/hour per direction
+            <Show when={headwayMin(props.s.freq)}>{(h) => <> · every {fmt(h(), 0)} min</>}</Show>
           </span>
         </div>
       </div>
-      <Show when={stop().one_way}>
-        <div class="callout" role="note">
-          <strong>◎ Counted ×{oneWayFactor()}: one direction only.</strong> Every bus here heads the
-          same way (one side of a one-way pair like Johnson/Gorham, or the end of a line). The
-          return trip stops a block or so away, so this stop's{' '}
-          {fmt(props.s.freq / oneWayFactor(), 1)} scheduled trips/hour count as{' '}
-          {fmt(props.s.freq, 1)}.
-        </div>
-      </Show>
 
       <h2>What's within {walkMin()} minutes</h2>
       <Meter
@@ -176,11 +152,11 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
       </div>
       <HourlyChart counts={stop().hourly[day()]} />
       <p class="hint">
-        All routes, buses you can board, on {data()?.rep_dates[day()] ?? ''}
-        <Show when={stop().one_way}> (scheduled, not doubled)</Show>.
+        All routes, both directions, buses you can board, on {data()?.rep_dates[day()] ?? ''}.
       </p>
 
       <h2>Trips per hour by route</h2>
+      <p class="hint">Per direction: the average of the directions each route runs here.</p>
       <table class="mini">
         <thead>
           <tr>
@@ -204,10 +180,8 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
             )}
           </For>
           <tr class="total">
-            <td>All{stop().one_way ? ` ×${String(oneWayFactor())}` : ''}</td>
-            <For each={PERIODS}>
-              {(p) => <td class="num">{fmt(periodFreq(stop(), p, oneWayFactor()), 1)}</td>}
-            </For>
+            <td>All</td>
+            <For each={PERIODS}>{(p) => <td class="num">{fmt(periodFreq(stop(), p), 1)}</td>}</For>
           </tr>
         </tbody>
       </table>

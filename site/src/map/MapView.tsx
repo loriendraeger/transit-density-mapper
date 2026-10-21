@@ -50,7 +50,6 @@ import {
   densities,
   densityOpacity,
   flyRequest,
-  oneWayFactor,
   scored,
   selectedId,
   setSelectedId,
@@ -88,7 +87,6 @@ interface StopProps {
   score: number
   freq: number
   r: number
-  one_way: boolean
 }
 
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
@@ -333,31 +331,6 @@ export default function MapView(): JSX.Element {
       },
     })
     const r: ExpressionSpecification = ['get', 'r']
-    // One-directional stops (trips counted x one-way factor) get an outer ring: a
-    // "double" circle for a doubled count. Same zoom scaling as the stop, a few px out.
-    m.addLayer({
-      id: 'stops-oneway',
-      type: 'circle',
-      source: 'stops',
-      filter: ['==', ['get', 'one_way'], true],
-      minzoom: 12,
-      paint: {
-        'circle-radius': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          12,
-          ['+', ['*', 0.7, r], 2.5],
-          14,
-          ['+', r, 3.5],
-          17,
-          ['+', ['*', 1.6, r], 4.5],
-        ],
-        'circle-color': 'rgba(0, 0, 0, 0)',
-        'circle-stroke-color': mode === 'dark' ? '#f0efec' : '#52514e',
-        'circle-stroke-width': 1.25,
-      },
-    })
     m.addLayer({
       id: 'stops',
       type: 'circle',
@@ -429,8 +402,7 @@ export default function MapView(): JSX.Element {
       popup
         .setLngLat(geom.coordinates as [number, number])
         .setHTML(
-          `<strong>${escapeHtml(p.name)}</strong><br>Score ${fmt(p.score, 0)} · ${fmt(p.freq, 1)} trips/h` +
-            (p.one_way ? `<br>◎ One direction only: trips counted ×${String(oneWayFactor())}` : ''),
+          `<strong>${escapeHtml(p.name)}</strong><br>Score ${fmt(p.score, 0)} · ${fmt(p.freq, 1)} trips/h`,
         )
         .addTo(m)
     })
@@ -484,8 +456,7 @@ export default function MapView(): JSX.Element {
           score: s.score,
           freq: s.freq,
           // Radius grows with the square root of frequency, so area tracks trips/hour.
-          r: 3 + 1.4 * Math.sqrt(s.freq),
-          one_way: s.stop.one_way,
+          r: 3 + 2 * Math.sqrt(s.freq),
         } satisfies StopProps,
       }))
       // Busiest stops draw last (on top).

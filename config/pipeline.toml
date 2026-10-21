@@ -40,13 +40,12 @@ weight_offpeak = 50
 weight_saturday = 12
 weight_sunday = 12
 # A departure is one that allows boarding (pickup_type <> 1).
-# One-directional stops (one side of a one-way couplet like Gorham/Johnson, or a line
-# terminus) only see buses heading one way, while two-way stops count both directions.
-# Their effective frequency is multiplied by one_way_factor (decision 2026-10-19). A
-# stop is one-directional when all its departures head within one_way_spread_deg of
-# each other (bearing from the stop to each trip's next stop).
-one_way_factor = 2
-one_way_spread_deg = 100
+# Frequency is per direction (GTFS direction_id): each route counts the average of the
+# directions it runs at a merged stop, then routes add up (decision 2026-10-20; replaced the
+# x2 rule for one-directional stops). A route's two directions count as one way (added,
+# not averaged) when their headings at the stop (bearing to the next stop) are within
+# same_way_max_deg: both directions of a loop can pass one platform heading the same way.
+same_way_max_deg = 90
 
 [walk]
 walk_speed_mps = 1.3          # ~4.7 km/h, a common planning value

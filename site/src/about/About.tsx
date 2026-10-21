@@ -45,11 +45,11 @@ export default function About(): JSX.Element {
       </Show>
       <p>
         Trips per hour = departures in the period ÷ its hours. The weighted week averages the
-        periods by the hours each stands for. One-way pairs (Johnson/Gorham) and the ends of lines
-        only see buses heading one way, while the opposite direction is a block or so away; these
-        one-directional stops count their buses ×{data()?.settings.one_way_factor ?? 2}. A stop is
-        one-directional when all its departures head within{' '}
-        {data()?.settings.one_way_spread_deg ?? 100}° of each other.
+        periods by the hours each stands for. Frequency is per direction, since a rider boards one
+        way: a merged stop usually holds both sides of the street, so each route counts the average
+        of the directions it runs there (GTFS <code>direction_id</code>), and the routes add up. One
+        side of a one-way pair (Johnson/Gorham) or the end of a line sees one direction only, so it
+        counts in full.
       </p>
 
       <h2>Walking</h2>

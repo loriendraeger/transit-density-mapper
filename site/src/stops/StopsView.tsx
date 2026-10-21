@@ -55,8 +55,8 @@ export default function StopsView(): JSX.Element {
           onSelect={setSelectedId}
         />
         <p class="hint">
-          Population, jobs and destinations are 0–100 against the best stop. ◎ = one-directional
-          stop (frequency ×{data()?.settings.one_way_factor ?? 2}).
+          Population, jobs and destinations are 0–100 against the best stop. Trips/h is per
+          direction: each route's directions averaged, summed over routes.
         </p>
       </main>
       <Show when={selected()}>

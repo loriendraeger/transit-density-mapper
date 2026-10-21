@@ -66,13 +66,16 @@ def test_estimated_units_near_census_outside_madison(db):
     assert 60_000 < est < 110_000
 
 
-def test_brt_peak_frequency_plausible(db):
-    """Route A (BRT) runs about every 15 min on weekday peaks; East Campus is eastbound only."""
+@pytest.mark.parametrize("stop_id", ["2843", "183"])
+def test_brt_peak_frequency_plausible(db, stop_id):
+    """Route A (BRT) runs about every 15 min on weekday peaks, counted per direction:
+    W Johnson & East Campus is eastbound only; E Washington & North has both directions,
+    which must not add up."""
     tph = scalar(
         db,
         "SELECT trips_per_hour FROM transit.period_freq "
         "WHERE cluster_id = %s AND route_id = 'A' AND period = 'peak'",
-        cluster_of(db, "2843"),
+        cluster_of(db, stop_id),
     )
     assert 3.5 <= tph <= 8
 

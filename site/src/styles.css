@@ -378,19 +378,6 @@ details.sub > summary {
   align-items: center;
   gap: 6px;
 }
-.oneway-key {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
-.oneway-key .dot-fill {
-  fill: var(--score);
-}
-.oneway-key .ring {
-  fill: none;
-  stroke: var(--ink-2);
-  stroke-width: 1.25;
-}
 .dot {
   width: 10px;
   height: 10px;
@@ -436,29 +423,6 @@ details.sub > summary {
   font-size: 26px;
   font-weight: 600;
   font-variant-numeric: proportional-nums;
-}
-.tile.doubled {
-  border-color: var(--score);
-}
-.badge {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--score);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  vertical-align: middle;
-}
-.callout {
-  margin: 4px 0 8px;
-  padding: 8px 10px;
-  border-left: 3px solid var(--score);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--score) 10%, transparent);
-  font-size: 13px;
-  line-height: 1.45;
 }
 .meter {
   margin: 10px 0;

@@ -53,7 +53,8 @@ byte-identical files, so a refactor can be checked with checksums.
   split points); `base_edges` (kinds `walk`, `side_l`, `side_r`, `cross`); `edges` =
   `base_edges` split at platforms (rebuilt by 30_stops, so that stage is rerunnable).
 - `transit`: `platform_cluster`, `clusters`, `rep_dates`, `departures`,
-  `directionality`, `hourly`, `period_freq`.
+  `route_ways`, `hourly`, `period_windows`, `period_freq_way`, `period_freq` (per
+  direction).
 - `gen`: `parcel_units`, `population`, `jobs`, `pois`, `poi_points`, `points` (all
   generators), `snap` (point -> edge), `hex`.
 - `catch`: `reach` (stop × vertex × seconds), `edge_time` (reach stage); `gen_time`, `bands` (catchments stage).
@@ -67,7 +68,7 @@ byte-identical files, so a refactor can be checked with checksums.
 | Which roads are barriers, crossing waits | `config/road_classes.csv` |
 | Walk speed, signal search distance, snapping | `config/pipeline.toml [walk]` |
 | Stop merging distance | `[stops] cluster_max_diameter_m`; one-off fixes in `config/stop_merge_overrides.csv` (`stop_id,action,group,note`; action `merge` with a shared group label, or `split`) |
-| Service periods, one-way test | `[frequency]` |
+| Service periods, per-direction rule | `[frequency]` |
 | Destination categories and weights | `config/poi_categories.csv` (first matching row wins; category `ignore` drops) |
 | Unit estimates outside Madison | `[generators]` and `40_generators/10_population.sql` |
 | Blob shape | `[catchments]` |
@@ -77,7 +78,7 @@ byte-identical files, so a refactor can be checked with checksums.
 
 | File | Contents | Made by |
 |---|---|---|
-| `stops.json` | Every merged stop: name, codes, routes, one-way flag, trips/hour by period × route, departures by hour × day type, banded totals per measure; plus routes, measures, settings, sources | `export.stops_json` |
+| `stops.json` | Every merged stop: name, codes, routes, trips/hour (per direction) by period × route, departures by hour × day type, banded totals per measure; plus routes, measures, settings, sources | `export.stops_json` |
 | `catchments.bin` | Per stop: spiderweb (walk-network edge ids + walk times) and blob (20 cumulative polygons), in one binary file with a JSON index of byte ranges; layout documented at `CATCH_FILE` in export.py | `export.catchments` |
 | `network.pmtiles` | `walk` (edges, feature id = `staging.osm_edges.id`), `crossings` | tippecanoe |
 | `generators.pmtiles` | `hex`, `pois`, `platforms`, `routes` (GTFS shapes run on the representative days) | tippecanoe |

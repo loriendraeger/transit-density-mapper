@@ -17,7 +17,6 @@ import {
   densities,
   densityOpacity,
   loadError,
-  oneWayFactor,
   selected,
   setBlobOpacity,
   setDensities,
@@ -115,15 +114,6 @@ function Layers(): JSX.Element {
             : 'Trips per hour. Circle size: trips per hour.'
         }
       />
-      <ul class="key">
-        <li>
-          <svg class="oneway-key" viewBox="0 0 20 20" aria-hidden="true">
-            <circle cx="10" cy="10" r="5" class="dot-fill" />
-            <circle cx="10" cy="10" r="8.5" class="ring" />
-          </svg>
-          One direction only: trips counted ×{oneWayFactor()}
-        </li>
-      </ul>
       <h3 class="subhead">Trip generators</h3>
       <p class="hint">
         Pick one or more: with two, each hexagon splits in half (left, right); with three, into

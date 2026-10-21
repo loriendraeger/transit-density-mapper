@@ -64,7 +64,7 @@ A **for-fun learning project**. The owner is interested in GIS and transit.
 | Stop merging (2026-10-19) | GTFS `parent_station` turned out to cover only the 19 BRT stations, so: BRT platforms merge with their station, and everything else merges by **complete-linkage clustering** with a **110 m** maximum diameter (`stops.py`). `config/stop_merge_overrides.csv` forces merges/splits. Merged location = centroid of the platforms. |
 | Service periods (2026-10-19) | **Weekday peak** (6–9, 15–18), **weekday off-peak** (9–15, 18–22), **Saturday** (8–20), **Sunday/holiday** (8–20), and a **weighted week** (default weights = hours per week each period stands for: 30/50/12/12). Weekday = Mon–Thu with UW in session (most common pattern). Friday is its own GTFS service but differs only by 6 late-night campus trips (routes 80/81/82, after 10 pm), outside every period window. |
 | Merged-stop frequency (2026-10-19) | **Combine all routes**, counting only departures you can board. Per-route numbers are shown too. |
-| One-way stops (2026-10-19) | Stops whose departures all head one way (one side of a couplet like Gorham/Johnson, line termini, one-side stops whose opposite stop is > 110 m away) count their frequency **× `one_way_factor` (2, set in `pipeline.toml`; owner 2026-10-19: users can't change it)**. Test: every departure's bearing to its next stop within 100°. |
+| Per-direction frequency (2026-10-20; replaces the 2026-10-19 ×2 rule for one-way stops) | A rider boards one way, so frequency is **per direction**: each route counts the **average of the ways it runs** at the merged stop (owner's choice over the busier direction), then routes add up. Ways = GTFS `direction_id`, except that a route's two directions whose headings at the stop (bearing to the next stop) are within `same_way_max_deg` (90°) are one way and add up (loops pass one platform both ways). One side of a couplet or a terminus has one way and counts in full, so no correction factor. |
 | Crossing penalty (2026-10-19, confirmed after review) | **Barrier-style**, implemented as the **corner model** (see [Walk network](#walk-network)): trunk/primary/secondary roads can only be crossed at signals or marked crossings, costing the expected wait plus the walk across. **Unmarked crossings of them stay forbidden** (owner kept this over Wisconsin's every-intersection-is-a-crosswalk rule). Waits per class in `config/road_classes.csv`. |
 | Population (2026-10-19) | **2020 Census blocks, split among parcels by dwelling units** (dasymetric). Madison parcels have `TotalDwellingUnits`; elsewhere units are estimated. Not capturing growth since 2020 is an accepted limitation. |
 | Jobs (2026-10-19) | **LEHD LODES 8 WAC, 2023**, at a point inside each block (lumping big suburban blocks is accepted). |
@@ -182,9 +182,15 @@ exports in EPSG:4326.
   services (weekday 2026-09-01, Saturday 2026-08-22, Sunday 2026-08-16 for the current
   feed; overridable in `pipeline.toml`).
 - Departures = stop_times with pickup allowed and a next stop. Counted per merged stop ×
-  route × day type × hour; period frequency = departures in the period's windows ÷ the
-  windows' hours.
-- One-way factor: fixed in `pipeline.toml`, shipped in `stops.json` settings, applied in the browser.
+  route × direction × day type × hour; period frequency = departures in the period's
+  windows ÷ the windows' hours.
+- Per direction (`transit.route_ways`, `period_freq_way`): a route's ways at a stop are
+  its GTFS directions, merged into one when their mean headings are within 90° (51
+  route-stop pairs, all loops). `period_freq` = the average over the ways a route runs in
+  that period. Before (sum of directions, ×2 for one-way stops) → now: two-way stops
+  about halve, one-way stops keep their scheduled count; the old bearing test had also
+  flagged some corner stops (bus turns, opposite platforms) as one-way.
+- The departures-by-hour chart still counts both directions.
 
 ### Walk network
 
@@ -252,13 +258,10 @@ exports in EPSG:4326.
   jobs. A style override; the tiles are unchanged.
 - **Map tab** (`site/src/map/MapView.tsx`): generator hexes (above), route lines (GTFS shapes in
   Metro's route colors), stops as circles sized by √frequency and colored by score or
-  frequency (orange ramp), an outer ring on one-directional stops (◎, trips counted ×2),
-  the selected stop's blob + spiderweb (violet; spiderweb colored per edge with
+  frequency (orange ramp), the selected stop's blob + spiderweb (violet; spiderweb colored per edge with
   MapLibre feature-state), a hover preview of another stop (fainter blob, dashed outline
   at the walk limit, gray spiderweb on feature-state key `h`), optional destinations and
   arterial-crossing layers.
-- **One-way stops in the drawer**: ×2 badge on the frequency tile, the scheduled number,
-  and a callout explaining the doubling.
 - **Layout (decided 2026-10-19)**: the left panel never changes (intro, settings,
   layers); a selected stop opens in a **right-hand drawer** (bottom sheet on phones,
   replacing the panel until closed).
@@ -275,7 +278,7 @@ exports in EPSG:4326.
 `make test` (after `make catchments`): pytest data checks in `pipeline/tests/`: every
 platform in exactly one merged stop; the owner's two merge examples; BRT stations stay
 whole; platforms snap within 50 m; dasymetric population sums to the census; estimated
-units outside Madison near the census; Route A peak frequency plausible; a 10-minute
+units outside Madison near the census; Route A peak frequency plausible per direction (one-way and two-way stop); a 10-minute
 walkshed area plausible; no arterial crossing without signal/marking evidence.
 `npm run check` in `site/` runs Prettier, ESLint and tsc. No frontend test suite.
 
@@ -332,8 +335,8 @@ Things learned the hard way; check these before debugging the same problem again
   (owner's local notes, deliberately not committed; may be missing in a fresh clone).
   Its top suggestions: validate the score against stop-level boardings and fit the
   weights; use current dwelling units for population and add ACS zero-car households;
-  per-direction frequency instead of the ×2 rule; separate origin/destination scores and
-  a stop-overlap view.
+  per-direction frequency instead of the ×2 rule (done 2026-10-20); separate
+  origin/destination scores and a stop-overlap view.
 - **Faster blobs (offered, not done)**: build each band from the previous band plus the
   new pieces (incremental union) instead of a full union per band; the unions are ~70 %
   of the blob export (~60 s). Output would differ by up to ~1 m in places, so verify by

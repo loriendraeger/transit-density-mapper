@@ -77,8 +77,8 @@ export function stepExpr(
   return ['step', input, ramp[0], ...stops] as ExpressionSpecification
 }
 
-/** Frequency breaks (trips per hour) when stops are colored by frequency. */
-export const FREQ_BREAKS = [2, 4, 8, 15]
+/** Frequency breaks (trips per hour per direction: hourly, 30, 15, 7.5 min service). */
+export const FREQ_BREAKS = [1, 2, 4, 8]
 
 /**
  * The Protomaps flavor with its greens (parks, woods, scrub, the zoo, green landcover,
