@@ -384,7 +384,8 @@ The `fit` step (`70_validation/`, `fit.py`; runs in `make`, ~5 s, before `stops.
   walkshed only gets to ×2.3. Likely: the 2024 boardings are the old Route A's busiest
   stops, where the stations were then sited (selection), plus a rapid-line premium.
   A station term in the model would fit ×5 and raise R² 0.18 → 0.25; the owner chose
-  to wait for post-BRT (2025 APC) data instead.
+  to wait for post-BRT (2025 APC) data instead. With transit connections in the model (2026-10-21) the
+  stations' median falls to ×3.2 (other Route A stops ×1.8, the rest ×1.03).
 - **Caveats**: 2024 riders vs. 2026 service; frequency is partly circular; boardings
   per trip also depend on where the route goes and position on the line; residuals are
   where the placement question starts, not answers.
