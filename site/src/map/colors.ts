@@ -71,11 +71,14 @@ export const RIDERS_BREAKS = [0.25, 0.5, 0.8, 1.25, 2, 4]
 export const ADDS_BREAKS = [0.05, 0.1, 0.2, 0.4]
 
 /** Transit reach of the selected stop, near -> far (<= 15, 30, 45, 60 min by transit):
- * one saturated magenta, darkest/brightest nearest (hue used nowhere else on the map;
- * checked with the dataviz validator as an ordinal ramp, light and dark). */
+ * one saturated magenta (a hue used nowhere else on the map), strongest nearest, in even
+ * lightness steps (OKLCH L ~0.43 -> 0.91 light, 0.88 -> 0.39 dark). The farthest class
+ * deliberately fades toward the background (owner's tuning, 2026-10-22): it's below the
+ * dataviz validator's 2:1 contrast floor for discrete classes (1.3:1 light, 1.7:1 dark),
+ * so the reach reads as fading out at its edge; the other checks pass. */
 export const TRANSIT_REACH_RAMP: Record<Mode, string[]> = {
-  light: ['#a90079', '#d0399c', '#e26ab3', '#ef91c7'],
-  dark: ['#ff87d0', '#e54eaf', '#bc378d', '#94296f'],
+  light: ['#8f0067', '#d0399c', '#ec9bcc', '#ffd3ec'],
+  dark: ['#ffbae8', '#f46cbf', '#b8338a', '#721f55'],
 }
 export const TRANSIT_REACH_BREAKS = [15, 30, 45]
 
