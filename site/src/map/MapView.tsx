@@ -61,6 +61,7 @@ import {
   walkMin,
 } from '../state/store'
 import {
+  ADDS_BREAKS,
   CATCHMENT,
   DENSITY_BREAKS,
   DENSITY_FIELD,
@@ -91,6 +92,9 @@ interface StopProps {
   /** Riders vs. expected; 0 when the stop has no ridership figure (has_riders false). */
   ratio: number
   has_riders: boolean
+  /** What the stop adds over its neighbors (0-1); has_adds false without data. */
+  adds: number
+  has_adds: boolean
   observed: number
   expected: number
 }
@@ -498,6 +502,8 @@ export default function MapView(): JSX.Element {
           has_riders: s.stop.riders !== null,
           observed: s.stop.riders?.observed ?? 0,
           expected: s.stop.riders?.expected ?? 0,
+          adds: s.adds ?? 0,
+          has_adds: s.adds !== null,
         } satisfies StopProps,
       }))
       // Busiest stops draw last (on top).
@@ -508,19 +514,22 @@ export default function MapView(): JSX.Element {
       const by = stopColor()
       const selected: ExpressionSpecification = ['boolean', ['feature-state', 'selected'], false]
       const ink = mode === 'dark' ? '#f0efec' : '#0b0b0b'
-      if (by === 'riders') {
-        // Stops without a ridership figure are hollow (surface fill, ink outline).
+      if (by === 'riders' || by === 'adds') {
+        // Stops without the figure are hollow (surface fill, ink outline).
+        const has: ExpressionSpecification = ['get', by === 'riders' ? 'has_riders' : 'has_adds']
         m.setPaintProperty('stops', 'circle-color', [
           'case',
-          ['get', 'has_riders'],
-          stepExpr(['get', 'ratio'], RIDERS_RAMP[mode], RIDERS_BREAKS),
+          has,
+          by === 'riders'
+            ? stepExpr(['get', 'ratio'], RIDERS_RAMP[mode], RIDERS_BREAKS)
+            : stepExpr(['get', 'adds'], SCORE_RAMP[mode], ADDS_BREAKS),
           surface,
         ])
         m.setPaintProperty('stops', 'circle-stroke-color', [
           'case',
           selected,
           ink,
-          ['get', 'has_riders'],
+          has,
           surface,
           ink2,
         ])

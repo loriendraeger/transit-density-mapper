@@ -43,6 +43,15 @@ export interface Stop {
   riders: { observed: number; expected: number } | null
   /** Why the stop was left out of the fit: school, campus, park_ride, airport, transfer. */
   special: string[]
+  /** What the stop adds over the next-best stop on its routes, at the default walk limit
+   * and half-life: decay-weighted totals in full and added, by group (pop, jobs,
+   * shopjobs, poi), and residents in reach / who'd walk 2+ minutes more without it. */
+  overlap: {
+    full: Partial<Record<'pop' | 'jobs' | 'shopjobs' | 'poi', number>>
+    added: Partial<Record<'pop' | 'jobs' | 'shopjobs' | 'poi', number>>
+    residents: number
+    residents_far: number
+  } | null
 }
 
 /** Fixed score settings and default weights (pipeline.toml [score], fit.py). */

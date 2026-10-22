@@ -160,11 +160,32 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
         )}
       </Show>
 
+      <Show when={stop().overlap}>
+        {(o) => (
+          <>
+            <h2>What it adds over its neighbors</h2>
+            <p>
+              <strong>{fmt((props.s.adds ?? 0) * 100, 0)} %</strong> of this stop's catchment isn't
+              served as well by another stop on its routes.{' '}
+              {o().residents > 0
+                ? `${compact(o().residents_far)} of the ${compact(o().residents)} residents within ${String(data()?.settings.score.walk_min ?? 10)} minutes would walk 2+ minutes more without it.`
+                : ''}
+            </p>
+            <p class="hint">
+              At the default {data()?.settings.score.walk_min ?? 10}-minute walk and{' '}
+              {data()?.settings.score.half_life_min ?? 4}-minute half-life: for each home, job and
+              destination, its weight at this stop minus its weight at the nearest other stop
+              sharing a route. Low values mean neighbors cover the same ground.
+            </p>
+          </>
+        )}
+      </Show>
+
       <h2>What's within {walkMin()} minutes</h2>
       <Meter
         label="Homes"
         value={props.s.norm.pop}
-        detail={`${compact(within('pop'))} residents (2020 Census, placed by dwelling units)`}
+        detail={`${compact(within('pop'))} residents (2020 Census plus new housing, placed by dwelling units)`}
       />
       <Meter
         label="Jobs"

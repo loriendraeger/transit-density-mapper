@@ -66,6 +66,10 @@ export const RIDERS_RAMP: Record<Mode, string[]> = {
 /** Ratio breaks (observed / expected): x1/4, x1/2, x0.8 | x1.25, x2, x4. */
 export const RIDERS_BREAKS = [0.25, 0.5, 0.8, 1.25, 2, 4]
 
+/** "What it adds" breaks (share of the catchment no other stop on its routes serves as
+ * well; median stop ~9 %), on the score ramp. */
+export const ADDS_BREAKS = [0.05, 0.1, 0.2, 0.4]
+
 /** Class breaks for the score ramp (0-100). */
 export const SCORE_BREAKS = [20, 40, 60, 80]
 

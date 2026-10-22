@@ -138,3 +138,16 @@ def test_destination_totals_follow_trip_shares(db):
         """,
     )
     assert worst < 1e-6
+
+
+def test_overlap_added_within_full(db):
+    """What a stop adds over its neighbors is never more than its full catchment, and
+    corridors overlap: the median stop adds well under half."""
+    over = scalar(db, "SELECT count(*) FROM catch.marginal WHERE added > full_value + 1e-9")
+    assert over == 0
+    median = scalar(
+        db,
+        "SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY added / full_value) "
+        "FROM catch.marginal WHERE measure = 'pop' AND full_value > 0",
+    )
+    assert 0 < median < 0.5

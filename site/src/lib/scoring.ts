@@ -76,6 +76,9 @@ export interface Scored {
   freq: number
   /** Observed / expected weekday boardings (ridersRatio); null without data. */
   riders: number | null
+  /** Share of the stop's catchment (default walk, current weights) that no other stop on
+   * its routes serves as well, 0-1; null without route data. */
+  adds: number | null
   rank: number
 }
 
@@ -141,6 +144,31 @@ export function scoreAll(data: StopsFile, s: Settings): Scored[] {
   const mDest = max('dest')
   const w = s.weights
   const wSum = w.pop + w.jobs + w.dest
+  // What each stop adds: its added totals over its full ones, each component normalized
+  // by the largest full total (as the score is), combined with the current weights.
+  const kShop = data.settings.score.shop_jobs_weight
+  function ov(stop: Stop, key: 'full' | 'added'): [number, number, number] {
+    const o = stop.overlap?.[key] ?? {}
+    return [o.pop ?? 0, o.jobs ?? 0, (o.poi ?? 0) + kShop * (o.shopjobs ?? 0)]
+  }
+  const ovMax = [0, 1, 2].map((i) =>
+    Math.max(1e-9, ...data.stops.map((stop) => ov(stop, 'full')[i] ?? 0)),
+  )
+  const ovW = [s.weights.pop, s.weights.jobs, s.weights.dest]
+  function adds(stop: Stop): number | null {
+    if (!stop.overlap) {
+      return null
+    }
+    const f = ov(stop, 'full')
+    const a = ov(stop, 'added')
+    let num = 0
+    let den = 0
+    for (let i = 0; i < 3; i++) {
+      num += ((ovW[i] ?? 0) * (a[i] ?? 0)) / (ovMax[i] ?? 1)
+      den += ((ovW[i] ?? 0) * (f[i] ?? 0)) / (ovMax[i] ?? 1)
+    }
+    return den > 0 ? num / den : null
+  }
   const scored = data.stops.map((stop, i) => {
     const raw = raws[i]
     const norm = {
@@ -150,7 +178,7 @@ export function scoreAll(data: StopsFile, s: Settings): Scored[] {
     }
     const score = wSum > 0 ? (w.pop * norm.pop + w.jobs * norm.jobs + w.dest * norm.dest) / wSum : 0
     const riders = ridersRatio(stop, data.settings.fit.ratio_k)
-    return { stop, raw, norm, score, freq: stopFreq(stop, s), riders, rank: 0 }
+    return { stop, raw, norm, score, freq: stopFreq(stop, s), riders, adds: adds(stop), rank: 0 }
   })
   const order = [...scored].sort((a, b) => b.score - a.score)
   order.forEach((x, i) => {

@@ -100,7 +100,7 @@ reach: stops | tools-up
 # Walk time to every generator and the banded totals per stop.
 catchments: reach generators | tools-up
 	$(STAGE) catchments '$(RUN) sql 55_catchments' $(S)/reach $(S)/generators \
-	    $(call SQL,55_catchments) $(D)/toml.walk $(COMMON)
+	    $(call SQL,55_catchments) $(D)/toml.walk $(D)/toml.score $(COMMON)
 
 # Observed boardings matched to stops, special stops flagged, then the score's weights
 # fit to them. Report: data/build/validation/ridership.md.

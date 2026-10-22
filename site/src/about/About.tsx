@@ -130,6 +130,18 @@ export default function About(): JSX.Element {
         )}
       </Show>
 
+      <h2>Overlap with neighbors</h2>
+      <p>
+        The score counts everyone within reach of a stop, so people near several stops count for
+        each. <strong>What it adds over neighbors</strong> (a stop color option and in each stop's
+        details) asks the stop-consolidation question instead: for each home, job and destination,
+        how much closer is this stop than the nearest other stop on the same routes? A stop whose
+        neighbors are nearly as close adds little; the only stop for a neighborhood adds a lot.
+        Sharing each place among all the stops that reach it (so the totals add up) was tested too,
+        but it predicted ridership worse, likely because stops on different routes serve different
+        trips; the score keeps counting catchments in full.
+      </p>
+
       <h2>Fit to ridership</h2>
       <Show when={data()?.settings.fit}>
         {(f) => (

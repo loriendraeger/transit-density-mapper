@@ -2,6 +2,7 @@ import { useNavigate } from '@solidjs/router'
 import { For, type JSX, Show } from 'solid-js'
 
 import {
+  ADDS_BREAKS,
   DENSITY_BREAKS,
   DENSITY_RAMPS,
   FREQ_BREAKS,
@@ -111,20 +112,31 @@ function Layers(): JSX.Element {
           <option value="score">Catchment score</option>
           <option value="freq">Trips per hour</option>
           <option value="riders">Riders vs. expected</option>
+          <option value="adds">What it adds over neighbors</option>
         </select>
       </label>
+      <Show when={stopColor() === 'adds'}>
+        <Legend
+          ramp={SCORE_RAMP[MODE]}
+          breaks={ADDS_BREAKS}
+          format={(v) => String(Math.round(v * 100))}
+          unit="Percent of the stop's catchment (10-minute walk, current weights) that no other stop on its routes serves as well. Low: neighbors cover it. Hollow: no data."
+        />
+      </Show>
       <Show
         when={stopColor() === 'riders'}
         fallback={
-          <Legend
-            ramp={SCORE_RAMP[MODE]}
-            breaks={stopColor() === 'score' ? SCORE_BREAKS : FREQ_BREAKS}
-            unit={
-              stopColor() === 'score'
-                ? 'Score (0–100). Circle size: trips per hour.'
-                : 'Trips per hour. Circle size: trips per hour.'
-            }
-          />
+          <Show when={stopColor() !== 'adds'}>
+            <Legend
+              ramp={SCORE_RAMP[MODE]}
+              breaks={stopColor() === 'score' ? SCORE_BREAKS : FREQ_BREAKS}
+              unit={
+                stopColor() === 'score'
+                  ? 'Score (0–100). Circle size: trips per hour.'
+                  : 'Trips per hour. Circle size: trips per hour.'
+              }
+            />
+          </Show>
         }
       >
         <Legend

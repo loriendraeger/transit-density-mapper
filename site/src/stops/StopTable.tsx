@@ -86,6 +86,16 @@ export default function StopTable(props: {
       sortFn: 'basic',
       cell: (c) => fmt(c.getValue(), 1),
     }),
+    helper.accessor((s) => s.adds ?? undefined, {
+      id: 'adds',
+      header: 'Adds',
+      sortFn: 'basic',
+      sortUndefined: 'last',
+      cell: (c) => {
+        const v = c.getValue()
+        return v === undefined ? '–' : `${fmt(v * 100, 0)} %`
+      },
+    }),
     // Stops without ridership data show a dash and sort last either way.
     helper.accessor((s) => s.riders ?? undefined, {
       id: 'riders',

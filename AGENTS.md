@@ -78,6 +78,7 @@ A **for-fun learning project**. The owner is interested in GIS and transit.
 | Blob rendering (2026-10-19) | Cumulative 1-minute bands stacked with per-band opacities solved so the **blob's opacity at time t follows the score's decay curve**. |
 | Licenses (2026-10-19) | **Same split as the sibling**: code GPL-3.0-or-later (`LICENSE`), docs CC BY-SA 4.0 (`LICENSE-DOCS`), outputs ODbL 1.0 with upstream attributions (`LICENSE-DATA`; required by OSM). |
 | Presets (2026-10-21) | Walk-limit and half-life sliders came back with two buttons: **Default assumption** (`[score]`: 10 min, 4 min half-life, weights fit there; the app's defaults) and **Best fit** (walk 5–20 × half-life 1–10 searched; weights refit; other destinations keep the default fit's points per shop job). Best fit 2026-10-21: 5 min walk, 3 min half-life, homes 3.5, jobs 0, other destinations 5; CV R² 0.188 vs. 0.152. |
+| Overlap with neighbors (2026-10-21) | **Marginal value**, route-aware: per home/job/destination within the default walk, its decay weight at this stop minus at the quickest other stop **sharing a route** (`catch.marginal`, `55_catchments/20_overlap.sql`); shown as a stop color ("What it adds over neighbors", share of the catchment at current weights), a drawer section (also residents who'd walk 2+ min more) and a table column. Median stop adds ~9 %. **Split catchments** (each place shared among all stops reaching it by decay weight) were tested as the score's basis and predicted boardings worse in 20/20 splits (default CV 0.164 → 0.139, best fit 0.198 → 0.154): the score keeps full catchments. Origin/destination split declined (round trips). |
 | Map behavior (2026-10-21) | Hex opacity doesn't change when a stop is selected. Opening/closing the drawer keeps the map's top-left corner fixed (a `resize` handler pans back MapLibre's keep-the-center resize) and pans only if the selected stop would be hidden. |
 | Calibration (2026-10-20; revised 2026-10-21) | Fit the score's weights to **observed boardings per trip** (MPO, Feb 2024) at the fixed walk/decay; the fit **is the default** (the preset button went away with the walk/decay sliders). Special stops (schools, campus, park-and-rides, airport, transfer points) found from **OSM + stop names**, left out of the fit. Leftovers shown as a **"Riders vs. expected" stop color** (owner's picks among options). |
 | Site data in git (2026-10-19) | `site/public/data/` is **gitignored** until the owner is happy with it. |
@@ -307,6 +308,10 @@ exports in EPSG:4326.
   replacing the panel until closed).
 - **Stop analysis tab** (`site/src/stops/`): sortable, filterable TanStack table, settings
   sidebar, detail panel with "Show walkshed on map".
+- **What it adds over neighbors**: a "Stops colored by" option (score ramp, breaks 5/10/
+  20/40 %), a drawer section and an "Adds" table column; computed in `scoring.ts` from
+  `stops.json` `overlap` (full/added totals by group at the default walk) with the
+  current weights.
 - **Riders vs. expected**: a "Stops colored by" option (diverging red ↔ gray ↔ blue,
   hollow = no data), a drawer section with observed/expected and special-stop reasons,
   a table column.
@@ -371,7 +376,7 @@ whole; platforms snap within 50 m; dasymetric population sums to the census; est
 units outside Madison near the census; Route A peak frequency plausible per direction (one-way and two-way stop); a 10-minute
 walkshed area plausible; no arterial crossing without signal/marking evidence; > 90 % of
 boardings matched; fitted settings inside the slider ranges; destination group totals
-match the trip shares.
+match the trip shares; a stop's added value within its full catchment.
 `npm run check` in `site/` runs Prettier, ESLint and tsc. No frontend test suite.
 
 Refactors of the pipeline are checked with checksums: the output is deterministic, so
@@ -430,7 +435,8 @@ Things learned the hard way; check these before debugging the same problem again
   also has an April 2025 APC-based estimate, post-BRT, only as a PDF map: worth asking for); use current dwelling units for population (done 2026-10-21); add ACS zero-car households
   (declined by the owner, see Decisions);
   per-direction frequency instead of the ×2 rule (done 2026-10-20); separate
-  origin/destination scores and a stop-overlap view.
+  origin/destination scores (declined: round trips) and a stop-overlap view (done
+  2026-10-21, see Decisions).
 - **Faster blobs (offered, not done)**: build each band from the previous band plus the
   new pieces (incremental union) instead of a full union per band; the unions are ~70 %
   of the blob export (~60 s). Output would differ by up to ~1 m in places, so verify by

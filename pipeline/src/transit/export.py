@@ -157,6 +157,7 @@ def stops_json() -> None:
             c["bands"] = {m: [0] * n_bands for m in measure_ids}
             c["riders"] = None
             c["special"] = []
+            c["overlap"] = None
         for r in conn.execute(
             "SELECT cluster_id, period, route_id, trips_per_hour FROM transit.period_freq"
         ):
@@ -192,6 +193,26 @@ def stops_json() -> None:
             "SELECT grp, round(share::numeric, 4)::float8 AS share FROM gen.purpose_shares "
             "ORDER BY share DESC"
         ).fetchall()
+        # What each stop adds over the next-best stop on its routes (55_catchments/
+        # 20_overlap.sql), per measure group: decay-weighted full and added totals at the
+        # default settings, and residents in reach / who'd walk 2+ minutes more without it.
+        for r in conn.execute(
+            "SELECT cluster_id, CASE WHEN measure IN ('pop', 'jobs', 'shopjobs') THEN measure "
+            "ELSE 'poi' END AS grp, sum(full_value) AS full_value, sum(added) AS added, "
+            "sum(in_reach) AS in_reach, sum(coalesce(far_without, 0)) AS far_without "
+            "FROM catch.marginal GROUP BY 1, 2"
+        ):
+            c = by_id.get(r["cluster_id"])
+            if c is None:
+                continue
+            if c["overlap"] is None:
+                c["overlap"] = {"full": {}, "added": {}, "residents": 0, "residents_far": 0}
+            o = c["overlap"]
+            o["full"][r["grp"]] = round(r["full_value"], 2)
+            o["added"][r["grp"]] = round(r["added"], 2)
+            if r["grp"] == "pop":
+                o["residents"] = round(r["in_reach"])
+                o["residents_far"] = round(r["far_without"])
         fit = {
             r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM valid.fit_params")
         }

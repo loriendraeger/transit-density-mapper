@@ -158,7 +158,7 @@ export const [showCrossings, setShowCrossings] = createSignal(false)
 export const [showRoutes, setShowRoutes] = createSignal(true)
 export const [blobOpacity, setBlobOpacity] = createSignal(0.5)
 /** What stop circles are colored by. */
-export type StopColor = 'score' | 'freq' | 'riders'
+export type StopColor = 'score' | 'freq' | 'riders' | 'adds'
 export const [stopColor, setStopColor] = createSignal<StopColor>('score')
 
 /** Ask the map to fly to a stop (from the table or the URL). */
