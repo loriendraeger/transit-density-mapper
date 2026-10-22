@@ -22,7 +22,6 @@ export default function App(props: RouteSectionProps): JSX.Element {
       <UrlSync />
       {props.children}
       <header class="topbar">
-        <span class="brand">Stop catchments</span>
         <nav class="tabs" role="tablist" aria-label="View">
           <For each={TABS}>
             {(t) => (
