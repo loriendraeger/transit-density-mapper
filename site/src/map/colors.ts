@@ -70,6 +70,15 @@ export const RIDERS_BREAKS = [0.25, 0.5, 0.8, 1.25, 2, 4]
  * well; median stop ~9 %), on the score ramp. */
 export const ADDS_BREAKS = [0.05, 0.1, 0.2, 0.4]
 
+/** Transit reach of the selected stop, near -> far (<= 15, 30, 45, 60 min by transit):
+ * one saturated magenta, darkest/brightest nearest (hue used nowhere else on the map;
+ * checked with the dataviz validator as an ordinal ramp, light and dark). */
+export const TRANSIT_REACH_RAMP: Record<Mode, string[]> = {
+  light: ['#a90079', '#d0399c', '#e26ab3', '#ef91c7'],
+  dark: ['#ff87d0', '#e54eaf', '#bc378d', '#94296f'],
+}
+export const TRANSIT_REACH_BREAKS = [15, 30, 45]
+
 /** Class breaks for the score ramp (0-100). */
 export const SCORE_BREAKS = [20, 40, 60, 80]
 

@@ -331,6 +331,11 @@ exports in EPSG:4326.
   for scores; blue, green, yellow for the three generators; violet for catchments;
   red ↔ blue diverging for riders vs. expected (magenta ↔ aqua was tried to avoid blue
   but fails CVD: deuteranopes can't tell the arms apart).
+- **Transit reach** (2026-10-21, owner: brighter, more saturated, not mixed with the
+  generators): its own "Transit reach" subsection in Layers, a saturated magenta ordinal
+  ramp (≤15 / 30 / 45 / 60 min, nearest strongest; validated light and dark) at 0.75
+  opacity; while it's on and a stop is selected the trip-generator hexes are hidden
+  (`transitReachActive()`), with a notice and a "Show trip generators instead" link.
 
 ### Calibration against ridership (2026-10-20)
 

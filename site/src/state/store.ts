@@ -162,6 +162,11 @@ export const [showPois, setShowPois] = createSignal(false)
 export const [showSpiderweb, setShowSpiderweb] = createSignal(true)
 /** The selected stop's transit isochrone (hexes by travel time by transit). */
 export const [showTransitReach, setShowTransitReach] = createSignal(false)
+/** The isochrone is on screen (layer on and a stop selected): the trip-generator hexes
+ * are hidden meanwhile, so the two don't mix. */
+export function transitReachActive(): boolean {
+  return showTransitReach() && selectedId() !== null
+}
 export const [showCrossings, setShowCrossings] = createSignal(false)
 export const [showRoutes, setShowRoutes] = createSignal(true)
 export const [blobOpacity, setBlobOpacity] = createSignal(0.5)

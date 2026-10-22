@@ -13,6 +13,8 @@ import {
   RIDERS_RAMP,
   SCORE_BREAKS,
   SCORE_RAMP,
+  TRANSIT_REACH_BREAKS,
+  TRANSIT_REACH_RAMP,
 } from '../map/colors'
 import {
   blobOpacity,
@@ -38,6 +40,7 @@ import {
   showTransitReach,
   type StopColor,
   stopColor,
+  transitReachActive,
 } from '../state/store'
 import { pathFor } from '../state/url'
 import Settings from './Settings'
@@ -48,6 +51,8 @@ function Legend(props: {
   breaks: readonly number[]
   unit: string
   format?: (v: number) => string
+  /** Upper bound of the last class, if it has one (else it reads "b+"). */
+  max?: number
 }): JSX.Element {
   function f(v: number): string {
     return props.format ? props.format(v) : v.toLocaleString('en-US')
@@ -64,7 +69,10 @@ function Legend(props: {
       if (lo === undefined) {
         return ''
       }
-      return hi === undefined ? `${f(lo)}+` : `${f(lo)}–${f(hi)}`
+      if (hi === undefined) {
+        return props.max === undefined ? `${f(lo)}+` : `${f(lo)}–${f(props.max)}`
+      }
+      return `${f(lo)}–${f(hi)}`
     })
   }
   return (
@@ -151,11 +159,37 @@ function Layers(): JSX.Element {
           unit="Times as many weekday riders (Feb 2024) as the fitted model expects from the stop's catchment and service. Red: fewer; gray: about as expected; blue: more. Hollow: no ridership figure."
         />
       </Show>
+      <h3 class="subhead">Transit reach</h3>
+      <Check
+        label="Show the selected stop's transit reach"
+        checked={showTransitReach()}
+        onChange={setShowTransitReach}
+      />
+      <Show when={showTransitReach()}>
+        <Legend
+          ramp={TRANSIT_REACH_RAMP[MODE]}
+          breaks={TRANSIT_REACH_BREAKS}
+          max={60}
+          unit="Minutes from the selected stop by walking and riding (weekday morning, planning around the schedule). Replaces the trip generators below while a stop is selected."
+        />
+      </Show>
       <h3 class="subhead">Trip generators</h3>
-      <p class="hint">
-        Pick one or more: with two, each hexagon splits in half (left, right); with three, into
-        three wedges, in this order.
-      </p>
+      <Show
+        when={transitReachActive()}
+        fallback={
+          <p class="hint">
+            Pick one or more: with two, each hexagon splits in half (left, right); with three, into
+            three wedges, in this order.
+          </p>
+        }
+      >
+        <p class="notice">
+          Hidden while the transit reach is shown.{' '}
+          <button type="button" class="link" onClick={() => setShowTransitReach(false)}>
+            Show trip generators instead
+          </button>
+        </p>
+      </Show>
       <For each={GENERATORS}>
         {(g) => (
           <>
@@ -176,10 +210,7 @@ function Layers(): JSX.Element {
               <Legend
                 ramp={DENSITY_RAMPS[g][MODE]}
                 breaks={DENSITY_BREAKS[g]}
-                unit={
-                  GENERATOR_LABELS[g].unit +
-                  (g === 'dest' ? ', with the destination category weights from Settings' : '')
-                }
+                unit={GENERATOR_LABELS[g].unit}
               />
             </Show>
           </>
@@ -215,11 +246,6 @@ function Layers(): JSX.Element {
       </label>
       <Check label="Route lines" checked={showRoutes()} onChange={setShowRoutes} />
       <Check label="Walking-path spiderweb" checked={showSpiderweb()} onChange={setShowSpiderweb} />
-      <Check
-        label="Transit reach of the selected stop (15 / 30 / 45 / 60 min)"
-        checked={showTransitReach()}
-        onChange={setShowTransitReach}
-      />
       <Check label="Destination places (zoom in)" checked={showPois()} onChange={setShowPois} />
       <Check
         label="Arterial crossings the walk model allows"

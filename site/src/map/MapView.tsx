@@ -60,6 +60,7 @@ import {
   showSpiderweb,
   showTransitReach,
   stopColor,
+  transitReachActive,
   walkMin,
 } from '../state/store'
 import {
@@ -79,6 +80,7 @@ import {
   SCORE_RAMP,
   stepExpr,
   SURFACE,
+  TRANSIT_REACH_RAMP,
 } from './colors'
 
 setWorkerUrl(workerUrl)
@@ -207,7 +209,7 @@ export default function MapView(): JSX.Element {
       )
     }
     // The selected stop's transit isochrone: hexes shaded by travel time by transit
-    // (feature-state tmin, from access.bin), stronger the closer, under the walk blob.
+    // (feature-state tmin, from access.bin), strongest nearest, under the walk blob.
     const tmin: ExpressionSpecification = ['coalesce', ['feature-state', 'tmin'], 999]
     m.addLayer(
       {
@@ -217,8 +219,8 @@ export default function MapView(): JSX.Element {
         'source-layer': HEX_LAYER,
         layout: { visibility: 'none' },
         paint: {
-          'fill-color': CATCHMENT[mode],
-          'fill-opacity': ['step', tmin, 0.45, 15.5, 0.32, 30.5, 0.2, 45.5, 0.1, 60.5, 0],
+          'fill-color': stepExpr(tmin, TRANSIT_REACH_RAMP[mode], [15.5, 30.5, 45.5]),
+          'fill-opacity': ['step', tmin, 0.75, 60.5, 0],
           'fill-antialias': false,
         },
       },
@@ -607,8 +609,10 @@ export default function MapView(): JSX.Element {
       const active = ['', 'density', 'density-half', 'density-third'].at(gens.length) ?? ''
       // Same opacity with or without a selected stop (owner 2026-10-21).
       const op = densityOpacity()
+      // Hidden while the selected stop's transit reach is shown (same hexes).
+      const hidden = transitReachActive()
       for (const id of ['density', 'density-half', 'density-third']) {
-        m.setLayoutProperty(id, 'visibility', id === active ? 'visible' : 'none')
+        m.setLayoutProperty(id, 'visibility', id === active && !hidden ? 'visible' : 'none')
         m.setPaintProperty(id, 'fill-opacity', op)
       }
       const ramps = gens.map(densityRamp)

@@ -189,6 +189,14 @@ h2 {
 .muted {
   color: var(--ink-2);
 }
+.notice {
+  margin: 4px 0 8px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--ink-2);
+  border-radius: 4px;
+  background: var(--plane);
+  font-size: 13px;
+}
 .hint {
   margin: 4px 0 0;
   font-size: 12px;
