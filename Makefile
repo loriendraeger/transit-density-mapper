@@ -85,10 +85,12 @@ stops: network | tools-up
 	    $(call SQL,30_stops) $(call PY,stops) config/stop_merge_overrides.csv \
 	    $(D)/toml.stops $(D)/toml.frequency $(D)/toml.walk $(COMMON)
 
+# Trip shares by purpose (NHTS) first: they set each destination group's total.
 generators: stops | tools-up
-	$(STAGE) generators '$(RUN) sql 40_generators' $(S)/stops $(call SQL,40_generators) \
-	    config/poi_categories.csv $(D)/toml.generators $(D)/toml.walk \
-	    $(D)/toml.study_area $(COMMON)
+	$(STAGE) generators '$(RUN) purposes && $(RUN) sql 40_generators' $(S)/stops \
+	    $(call SQL,40_generators) config/poi_categories.csv config/destination_groups.csv \
+	    config/trip_purposes.csv data/raw/nhts/tripv2pub.csv $(call PY,purposes) \
+	    $(D)/toml.generators $(D)/toml.walk $(D)/toml.study_area $(COMMON)
 
 # Walk times from every stop (pgRouting, in parallel), then per-edge times.
 reach: stops | tools-up
@@ -105,7 +107,7 @@ catchments: reach generators | tools-up
 fit: catchments | tools-up
 	$(STAGE) fit '$(RUN) sql 70_validation && $(RUN) fit' $(S)/catchments \
 	    $(call SQL,70_validation) $(call PY,fit) config/special_stops.csv \
-	    $(D)/toml.ridership $(D)/toml.frequency $(D)/toml.walk $(COMMON) \
+	    $(D)/toml.ridership $(D)/toml.score $(D)/toml.frequency $(D)/toml.walk $(COMMON) \
 	    out:data/build/validation/ridership.md
 
 # Export views, one SQL stage per tile file (dropping tables upstream drops views).
@@ -130,7 +132,7 @@ generators-tiles: views-generators | tools-up
 
 stops-json: catchments fit | tools-up
 	$(STAGE) stops-json '$(RUN) stops-json' $(S)/catchments $(S)/fit config/sources.toml \
-	    $(D)/toml.frequency $(D)/toml.walk $(D)/toml.stops $(call PY,export) \
+	    $(D)/toml.frequency $(D)/toml.walk $(D)/toml.stops $(D)/toml.score $(call PY,export) \
 	    out:$(OUT)/stops.json
 
 catchments-bin: reach | tools-up

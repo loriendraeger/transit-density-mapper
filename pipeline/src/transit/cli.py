@@ -8,6 +8,7 @@ from . import download as download_mod
 from . import export as export_mod
 from . import fit as fit_mod
 from . import load as load_mod
+from . import purposes as purposes_mod
 from . import reach as reach_mod
 from . import sqlrun
 from . import stops as stops_mod
@@ -42,6 +43,12 @@ def sql(
         raise typer.BadParameter(f"unknown stage; choose from {sqlrun.stages()}")
     overrides = dict(kv.split("=", 1) for kv in set_ or [])
     sqlrun.run_stage(stage, overrides)
+
+
+@app.command()
+def purposes():
+    """Trip shares by destination purpose from the NHTS (gen.purpose_shares)."""
+    purposes_mod.purposes()
 
 
 @app.command()

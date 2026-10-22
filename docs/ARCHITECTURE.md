@@ -32,10 +32,10 @@ including the load is under 2.5 minutes.
 | `staging` | `sql/10_staging` | `road_classes.csv`, `[analysis]` | `staging.*` (typed, EPSG:3071) |
 | `network` | `sql/20_network` | `[walk]` | `net.base_edges`, `net.vertices` |
 | `stops` | `transit cluster` (stops.py) + `sql/30_stops` | `stop_merge_overrides.csv`, `[stops]`, `[frequency]`, `[walk]` | `transit.*`, `net.edges` (split at platforms) |
-| `generators` | `sql/40_generators` | `poi_categories.csv`, `[generators]`, `[walk]`, `[study_area]` | `gen.*` |
+| `generators` | `transit purposes` (purposes.py, NHTS trip file) + `sql/40_generators` | `poi_categories.csv`, `destination_groups.csv`, `trip_purposes.csv`, `[generators]`, `[walk]`, `[study_area]` | `gen.*` |
 | `reach` | `transit reach` (reach.py) + `sql/50_reach` | `[walk]` | `catch.reach`, `catch.edge_time` |
 | `catchments` | `sql/55_catchments` | `[walk]` | `catch.gen_time`, `catch.bands` |
-| `fit` | `sql/70_validation`, `transit fit` (fit.py) | `special_stops.csv`, `[ridership]`, `[frequency]`, `[walk]` | `valid.*`, `data/build/validation/ridership.md` |
+| `fit` | `sql/70_validation`, `transit fit` (fit.py) | `special_stops.csv`, `[ridership]`, `[score]`, `[frequency]`, `[walk]` | `valid.*`, `data/build/validation/ridership.md` |
 | `export` | `sql/60_export_network`, `sql/61_export_generators`, then `transit tiles network`, `transit tiles generators`, `transit stops-json`, `transit catchments` (export.py) | `[tiles]`, `[frequency]`, `[catchments]`... | `site/public/data/` |
 | `basemap` | `transit basemap` | Protomaps build (HTTP) | `site/public/data/basemap.pmtiles` |
 | `test` | pytest `pipeline/tests/` | | |
@@ -56,7 +56,7 @@ byte-identical files, so a refactor can be checked with checksums.
 - `transit`: `platform_cluster`, `clusters`, `rep_dates`, `departures`,
   `route_ways`, `hourly`, `period_windows`, `period_freq_way`, `period_freq` (per
   direction).
-- `gen`: `parcel_units`, `population`, `jobs`, `pois`, `poi_points`, `points` (all
+- `gen`: `purpose_shares` (NHTS), `dest_groups`, `parcel_units`, `population`, `jobs`, `pois`, `poi_points`, `points` (all
   generators), `snap` (point -> edge), `hex`.
 - `catch`: `reach` (stop × vertex × seconds), `edge_time` (reach stage); `gen_time`, `bands` (catchments stage).
 - `valid`: `ridership` (MPO stops matched to platforms), `cluster_ridership`, `special`
@@ -72,11 +72,13 @@ byte-identical files, so a refactor can be checked with checksums.
 | Walk speed, signal search distance, snapping | `config/pipeline.toml [walk]` |
 | Stop merging distance | `[stops] cluster_max_diameter_m`; one-off fixes in `config/stop_merge_overrides.csv` (`stop_id,action,group,note`; action `merge` with a shared group label, or `split`) |
 | Service periods, per-direction rule | `[frequency]` |
-| Destination categories and weights | `config/poi_categories.csv` (first matching row wins; category `ignore` drops) |
+| Destination kinds and weights within a category | `config/poi_categories.csv` (first matching row wins; category `ignore` drops) |
+| Destination group totals | trip shares from the NHTS: `config/trip_purposes.csv` (purpose code -> group), `config/destination_groups.csv` (category -> group), `[generators] purpose_trips` (urban / all / transit) |
+| Walk limit and half-life of the score | `[score]` (fixed; the site has no sliders for them) |
 | Unit estimates outside Madison | `[generators]` and `40_generators/10_population.sql` |
 | Blob shape | `[catchments]` |
 | Which layers go into which PMTiles | `[tiles.files.*]` |
-| Special stops, fit search ranges | `[ridership]`; one-off fixes in `config/special_stops.csv` (`stop_id,reason,note`; reason `none` clears) |
+| Special stops, half-lives compared in the report | `[ridership]`; one-off fixes in `config/special_stops.csv` (`stop_id,reason,note`; reason `none` clears) |
 
 ## Site outputs (`site/public/data/`)
 

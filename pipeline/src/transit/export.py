@@ -118,8 +118,9 @@ def _measures(conn) -> list[dict]:
         "FROM gen.pois GROUP BY category ORDER BY category"
     ).fetchall()
     return [
-        {"id": "pop", "kind": "pop", "label": "Population"},
+        {"id": "pop", "kind": "pop", "label": "Homes"},
         {"id": "jobs", "kind": "jobs", "label": "Jobs"},
+        {"id": "shopjobs", "kind": "shopjobs", "label": "Retail and health-care jobs"},
         *(
             {
                 "id": c["category"],
@@ -187,6 +188,10 @@ def stops_json() -> None:
                     }
                 )
                 c["special"] = r["reasons"] or []
+        shares = conn.execute(
+            "SELECT grp, round(share::numeric, 4)::float8 AS share FROM gen.purpose_shares "
+            "ORDER BY share DESC"
+        ).fetchall()
         fit = {
             r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM valid.fit_params")
         }
@@ -219,11 +224,19 @@ def stops_json() -> None:
             "max_walk_min": p["walk"]["max_walk_min"],
             "band_min": p["walk"]["band_min"],
             "cluster_max_diameter_m": p["stops"]["cluster_max_diameter_m"],
-            # Score settings fit to observed boardings (fit.py): the site's preset.
-            "fit": {
+            # Fixed score settings ([score]) and default weights fit to observed
+            # boardings (fit.py). Other destinations = POI points + shop_jobs_weight x
+            # retail/health-care jobs.
+            "score": {
                 "walk_min": int(fit["walk_min"]),
-                "decay": {"kind": "exponential", "param": fit["half_life"]},
+                "half_life_min": fit["half_life"],
                 "weights": {"pop": fit["w_pop"], "jobs": fit["w_jobs"], "dest": fit["w_dest"]},
+                "shop_jobs_weight": round(fit["shop_jobs_weight"], 5),
+            },
+            # Share of destination trips by purpose group (NHTS), which sets each
+            # group's total destination points.
+            "purpose_shares": {r["grp"]: r["share"] for r in shares},
+            "fit": {
                 "r2": round(fit["r2"], 3),
                 "cv_r2": round(fit["cv_r2"], 3),
                 "n_fit": int(fit["n_fit"]),

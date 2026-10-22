@@ -92,6 +92,20 @@ poi_outline_step_m = 75
 # Hex grid for the density map layers (meters, flat-to-flat).
 hex_size_m = 150
 
+# Destination totals by trip purpose (2026-10-21): each group of POI categories
+# (config/destination_groups.csv) gets the share of trips that survey respondents made
+# for that purpose (config/trip_purposes.csv, NHTS 2022); poi_categories.csv weights
+# only rank places within a category. Which trips: "urban" (in an urban area), "all", or
+# "transit" (too small a sample nationally: ~100 trips).
+purpose_trips = "urban"
+
+[score]
+# Fixed score settings (owner 2026-10-21: no walk/decay sliders). 10 min is the usual
+# planning walk to a bus stop; a 4 min half-life leaves about a quarter weight at the
+# limit. The ridership fit preferred shorter half-lives (2 min) by a small margin.
+walk_min = 10
+half_life_min = 4
+
 [catchments]
 # Blob polygons (export.py): reachable network pieces buffered by blob_buffer_m, then a
 # morphological closing (grow then shrink by blob_close_m) fills in the blocks between
@@ -130,6 +144,6 @@ special_transfer_min_routes = 5 # transfer point: this many routes or more
 # Stops below this weekday frequency (trips/h per direction) are left out of the fit:
 # boardings per trip get noisy when there are only a few trips.
 fit_min_freq = 0.5
-# Search ranges (minutes, whole minutes) for the exponential half-life and walk limit.
-fit_half_life_range = [1, 20]
-fit_walk_min_range = [5, 20]
+# Half-lives (minutes) the report compares at the fixed walk limit (for information;
+# the score uses [score] half_life_min).
+fit_half_life_range = [1, 10]

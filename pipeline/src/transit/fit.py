@@ -1,23 +1,26 @@
 """Calibrate the catchment score against observed boardings (valid.cluster_ridership).
 
-The site's score is a weighted sum of decay-weighted catchment totals (population,
-jobs, destinations), normalized against the best stop (site/src/lib/scoring.ts). Here
-the same formula is fit to observed weekday boardings per trip, a stop's riders per
-unit of service, so frequency doesn't get credited to the catchment:
+The site's score is a weighted sum of decay-weighted catchment totals (homes, jobs,
+other destinations), normalized against the best stop (site/src/lib/scoring.ts), at
+fixed settings (pipeline.toml [score]: walk limit, exponential half-life). Here the same
+formula is fit to observed weekday boardings per trip, a stop's riders per unit of
+service, so frequency doesn't get credited to the catchment:
 
-    boardings / freq ~ b0 + w_pop * pop + w_jobs * jobs + w_dest * dest
+    boardings / freq ~ b0 + w_pop * pop + w_jobs * jobs + w_osm * osm + w_shop * shop_jobs
 
-with non-negative weights, the exponential half-life and the walk limit searched over
-whole minutes. Fit by least squares on log(1 + .) so the few huge stops (campus) don't
-decide everything. Special stops (valid.special: schools, campus, park-and-rides,
-airport, transfer points) and stops with little service stay out of the fit.
+with non-negative weights, by least squares on log(1 + .) so the few huge stops (campus)
+don't decide everything. osm = OSM destination points (category totals from trip
+purposes); shop_jobs = retail and health-care jobs, which size shops and clinics. The
+site folds both into one "other destinations" term, osm + k * shop_jobs, with k = the
+fitted ratio (points per shop job). Special stops (valid.special: schools, campus,
+park-and-rides, airport, transfer points) and stops with little service stay out.
 
 Outputs:
-- valid.fit_params: the fitted settings, with the weights scaled for the site's 0-5
-  sliders (they act on catchment totals normalized against the best stop)
+- valid.fit_params: default slider weights (homes, jobs, destinations; 0-5, fitted and
+  rounded), k, R² (in-sample and cross-validated)
 - valid.stop_fit: per stop, observed boardings and the fit's expected boardings
   (freq * (b0 + w . x)), the basis of the site's "riders vs. expected"
-- data/build/validation/ridership.md: correlations at the site defaults, the fit, and
+- data/build/validation/ridership.md: the fit, a half-life comparison, correlations and
   the biggest residuals
 """
 
@@ -32,10 +35,7 @@ from scipy.stats import spearmanr
 from . import config
 
 OUT = config.BUILD / "validation" / "ridership.md"
-COMPONENTS = ("pop", "jobs", "dest")
-# Site defaults (site/src/state/store.ts), for the "as shipped" comparison.
-DEFAULT_WALK_MIN = 10
-DEFAULT_HALF_LIFE = 8
+COMPONENTS = ("pop", "jobs", "osm", "shopjobs")
 # Boardings are weekday averages, so frequency is the weekday mix.
 WEEKDAY_PERIODS = ("peak", "offpeak")
 SLIDER_MAX = 5
@@ -75,13 +75,14 @@ def load() -> dict:
             "ORDER BY c.cluster_id"
         ).fetchall()
         idx = {s["id"]: i for i, s in enumerate(stops)}
-        # bands[stop, band, component]
+        # bands[stop, band, component]; every POI category counts toward osm.
         bands = np.zeros((len(stops), n_bands, len(COMPONENTS)))
         for r in conn.execute("SELECT cluster_id, band, measure, value FROM catch.bands"):
             i = idx.get(r["cluster_id"])
             if i is None or r["band"] > n_bands:
                 continue
-            k = COMPONENTS.index(r["measure"]) if r["measure"] in ("pop", "jobs") else 2
+            m = r["measure"]
+            k = COMPONENTS.index(m) if m in COMPONENTS else COMPONENTS.index("osm")
             bands[i, r["band"] - 1, k] += r["value"]
         freq = np.zeros(len(stops))
         for r in conn.execute(
@@ -114,7 +115,8 @@ def load() -> dict:
         "unmatched_top": unmatched_top,
         "fit_min_freq": p["ridership"]["fit_min_freq"],
         "hl_range": p["ridership"]["fit_half_life_range"],
-        "walk_range": p["ridership"]["fit_walk_min_range"],
+        "walk_min": p["score"]["walk_min"],
+        "half_life": p["score"]["half_life_min"],
     }
 
 
@@ -122,12 +124,6 @@ def components(d: dict, walk_min: float, half_life: float) -> np.ndarray:
     """Decay-weighted catchment totals, [stop, component]."""
     bw = band_weights(d["bands"].shape[1], d["band_min"], walk_min, half_life)
     return np.einsum("nbk,b->nk", d["bands"], bw)
-
-
-def site_score(x: np.ndarray, weights: np.ndarray) -> np.ndarray:
-    """The site's score: components normalized 0-100 against the best stop, averaged."""
-    norm = 100 * x / np.maximum(x.max(axis=0), 1e-9)
-    return norm @ weights / weights.sum()
 
 
 def fit_log(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, float]:
@@ -145,71 +141,76 @@ def fit_log(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, float]:
         return float((r**2).sum()), (-2 * r / (1 + z)) @ x1 * p
 
     best = None
-    for start in ([0.0] * 4, [1.0] * 4, [1.0, 3.0, 0.0, 2.0]):
-        r = minimize(loss, np.array(start), jac=True, method="L-BFGS-B")
+    for start in (0.0, 1.0, -2.0):
+        r = minimize(loss, np.full(x1.shape[1], start), jac=True, method="L-BFGS-B")
         if best is None or r.fun < best.fun:
             best = r
-    return np.exp(best.x), 1 - best.fun / ((ly - ly.mean()) ** 2).sum()
+    return np.exp(np.clip(best.x, -30, 30)), 1 - best.fun / ((ly - ly.mean()) ** 2).sum()
+
+
+def cv_r2(x: np.ndarray, y: np.ndarray, seed: int = 0) -> float:
+    """Cross-validated R² (weights refit on each training fold)."""
+    folds = np.random.default_rng(seed).permutation(len(y)) % CV_FOLDS
+    sse = sst = 0.0
+    for k in range(CV_FOLDS):
+        tr, te = folds != k, folds == k
+        p, _ = fit_log(x[tr], y[tr])
+        ly = np.log1p(y[te])
+        sse += ((ly - np.log1p(p[0] + x[te] @ p[1:])) ** 2).sum()
+        sst += ((ly - np.log1p(y[tr]).mean()) ** 2).sum()
+    return 1 - sse / sst
 
 
 def fit_model(d: dict) -> dict:
     b, freq = d["boardings"], d["freq"]
     in_fit = ~np.isnan(b) & (freq >= d["fit_min_freq"]) & ~d["special"]
     y = b[in_fit] / freq[in_fit]
-    grid = []
-    for walk_min in range(d["walk_range"][0], d["walk_range"][1] + 1):
-        for hl in range(d["hl_range"][0], d["hl_range"][1] + 1):
-            x = components(d, walk_min, hl)[in_fit]
-            scale = np.maximum(x.max(axis=0), 1e-9)
-            params, r2 = fit_log(x / scale, y)
-            grid.append({"walk_min": walk_min, "half_life": hl, "r2": r2, "params": params})
-    best = max(grid, key=lambda g: g["r2"])
-    default = next(
-        g for g in grid if g["walk_min"] == DEFAULT_WALK_MIN and g["half_life"] == DEFAULT_HALF_LIFE
+
+    def at(half_life: float) -> dict:
+        x_all = components(d, d["walk_min"], half_life)
+        scale = np.maximum(x_all[in_fit].max(axis=0), 1e-9)
+        params, r2 = fit_log(x_all[in_fit] / scale, y)
+        return {"x": x_all, "scale": scale, "params": params, "r2": r2}
+
+    m = at(d["half_life"])
+    x_all, scale, params = m["x"], m["scale"], m["params"]
+    b0, w = params[0], params[1:] / scale  # weights per raw unit
+    expected = freq * (b0 + x_all @ w)
+    pop_w, jobs_w, osm_w, shop_w = w
+    # One "other destinations" term: osm + k * shop_jobs.
+    k_shop = shop_w / max(osm_w, 1e-12)
+    dest = x_all[:, 2] + k_shop * x_all[:, 3]
+    # Site sliders act on totals normalized against the best of all stops: a raw-unit
+    # weight times that maximum, then scaled to the 0-5 sliders.
+    site_w = np.array([pop_w, jobs_w, osm_w]) * np.array(
+        [x_all[:, 0].max(), x_all[:, 1].max(), dest.max()]
     )
-    x_all = components(d, best["walk_min"], best["half_life"])
-    scale = np.maximum(x_all[in_fit].max(axis=0), 1e-9)
-    b0, w = best["params"][0], best["params"][1:]
-    per_trip = b0 + (x_all / scale) @ w
-    expected = freq * per_trip
-
-    # Site sliders act on totals normalized against the best of all stops, so a fitted
-    # weight per unit of x becomes w / scale * max(all stops); then fit 0-5 sliders.
-    site_w = w / scale * np.maximum(x_all.max(axis=0), 1e-9)
     site_w = np.round(site_w / site_w.max() * SLIDER_MAX / SLIDER_STEP) * SLIDER_STEP
-
-    # Cross-validated R² at the chosen settings (weights refit on each training fold).
-    rng = np.random.default_rng(0)
-    folds = rng.permutation(in_fit.sum()) % CV_FOLDS
-    xf = x_all[in_fit] / scale
-    sse = sst = 0.0
-    for k in range(CV_FOLDS):
-        tr, te = folds != k, folds == k
-        p, _ = fit_log(xf[tr], y[tr])
-        ly = np.log1p(y[te])
-        sse += ((ly - np.log1p(p[0] + xf[te] @ p[1:])) ** 2).sum()
-        sst += ((ly - np.log1p(y[tr]).mean()) ** 2).sum()
+    profile = [
+        {"half_life": h, "r2": at(h)["r2"]} for h in range(d["hl_range"][0], d["hl_range"][1] + 1)
+    ]
     return {
         "in_fit": in_fit,
-        "grid": grid,
-        "best": best,
-        "default": default,
+        "r2": m["r2"],
+        "cv_r2": cv_r2(x_all[in_fit] / scale, y),
         "site_weights": site_w,
+        "k_shop": k_shop,
         "expected": expected,
-        "cv_r2": 1 - sse / sst,
+        "dest": dest,
         "x": x_all,
+        "profile": profile,
     }
 
 
 def write_db(d: dict, m: dict) -> None:
-    best = m["best"]
     params = {
-        "walk_min": best["walk_min"],
-        "half_life": best["half_life"],
+        "walk_min": d["walk_min"],
+        "half_life": d["half_life"],
         "w_pop": m["site_weights"][0],
         "w_jobs": m["site_weights"][1],
         "w_dest": m["site_weights"][2],
-        "r2": best["r2"],
+        "shop_jobs_weight": m["k_shop"],
+        "r2": m["r2"],
         "cv_r2": m["cv_r2"],
         "n_fit": int(m["in_fit"].sum()),
         "ratio_k": RATIO_K,
@@ -242,10 +243,11 @@ def report(d: dict, m: dict) -> str:
     has = ~np.isnan(d["boardings"])
     b, freq = d["boardings"][has], d["freq"][has]
     m_ = d["match"]
-    x_def = components(d, DEFAULT_WALK_MIN, DEFAULT_HALF_LIFE)
-    score = site_score(x_def, np.ones(3))[has]
-    best, default = m["best"], m["default"]
-    fitted_score = site_score(m["x"], np.maximum(m["site_weights"], 1e-9))[has]
+    x = m["x"]
+    norm = np.column_stack([x[:, 0], x[:, 1], m["dest"]])
+    norm = 100 * norm / np.maximum(norm.max(axis=0), 1e-9)
+    sw = m["site_weights"]
+    score = (norm @ sw / sw.sum())[has]
     names = [f"{s['name']} ({s['id']})" for s in d["stops"]]
     reasons = [", ".join(s["reasons"] or []) for s in d["stops"]]
     lines = [
@@ -268,44 +270,36 @@ def report(d: dict, m: dict) -> str:
         f"transfer) and stops under {d['fit_min_freq']} trips/h stay out of the fit: "
         f"{m['in_fit'].sum()} stops are fit.",
         "",
+        "## Fit: boardings per trip/h ~ b0 + weights · catchment (log scale)",
+        "",
+        f"- Settings (pipeline.toml [score]): walk limit {d['walk_min']} min, half-life "
+        f"{d['half_life']} min.",
+        f"- R² {m['r2']:.3f} ({CV_FOLDS}-fold cross-validated {m['cv_r2']:.3f}).",
+        f"- Default sliders (0–{SLIDER_MAX}): homes {sw[0]:g}, jobs {sw[1]:g}, other "
+        f"destinations {sw[2]:g}.",
+        f"- Other destinations = OSM destination points + {m['k_shop']:.3f} × retail and "
+        "health-care jobs.",
+        "",
+        f"R² by half-life at the {d['walk_min']} min limit (for comparison):",
+        "",
+        "| Half-life (min) | R² |",
+        "|---|---|",
+        *(f"| {p['half_life']} | {p['r2']:.3f} |" for p in m["profile"]),
+        "",
         "## Rank correlation with boardings (Spearman ρ), all stops with data",
         "",
         "| Measure | ρ |",
         "|---|---|",
     ]
     rows = [
-        ("Score, site defaults (10 min, 8 min half-life, 1:1:1)", score, b),
-        ("Score, fitted settings", fitted_score, b),
+        ("Score at the defaults", score, b),
         ("Frequency (trips/h per direction)", freq, b),
         ("Expected boardings (fit × frequency)", m["expected"][has], b),
-        ("Score (defaults) vs. boardings per trip/h", score, b / np.maximum(freq, 0.1)),
+        ("Score vs. boardings per trip/h", score, b / np.maximum(freq, 0.1)),
     ]
-    for label, x, y in rows:
-        lines.append(f"| {label} | {spearmanr(x, y).statistic:.2f} |")
-    by_walk: dict[int, dict] = {}
-    for g in m["grid"]:
-        if g["walk_min"] not in by_walk or g["r2"] > by_walk[g["walk_min"]]["r2"]:
-            by_walk[g["walk_min"]] = g
-    sw = m["site_weights"]
-    lines += [
-        "",
-        "## Fit: boardings per trip/h ~ b0 + weights · catchment (log scale)",
-        "",
-        f"- Best: walk limit {best['walk_min']} min, half-life {best['half_life']} min, "
-        f"R² {best['r2']:.3f} ({CV_FOLDS}-fold cross-validated {m['cv_r2']:.3f}); at the "
-        f"site defaults R² {default['r2']:.3f}.",
-        f"- Site weights (0–{SLIDER_MAX} sliders): population {sw[0]:g}, jobs {sw[1]:g}, "
-        f"destinations {sw[2]:g}.",
-        "",
-        "Best R² per walk limit (half-life searched):",
-        "",
-        "| Walk limit (min) | Half-life (min) | R² |",
-        "|---|---|---|",
-        *(f"| {w} | {g['half_life']} | {g['r2']:.3f} |" for w, g in sorted(by_walk.items())),
-        "",
-        "## Riders vs. expected (fitted model × frequency)",
-        "",
-    ]
+    for label, xs, ys in rows:
+        lines.append(f"| {label} | {spearmanr(xs, ys).statistic:.2f} |")
+    lines += ["", "## Riders vs. expected (fitted model × frequency)", ""]
     ratio = (d["boardings"] + RATIO_K) / (m["expected"] + RATIO_K)
     idx = np.flatnonzero(has)
     order = idx[np.argsort(ratio[idx])]

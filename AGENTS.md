@@ -4,9 +4,10 @@ Guidance for AI coding agents (and humans) working in this repo.
 
 ## Project
 
-**Goal: show how well each Madison Metro stop is placed relative to the things that
-generate transit trips** (people, jobs, and destinations) and how often buses actually
-serve it.
+**Goal: show each Madison Metro stop's ridership potential and transit density**
+(owner's focus, 2026-10-21): the trip generators within a short walk (homes, jobs, other
+destinations), how often buses serve the stop, and how its observed boardings compare
+with what its catchment and service predict.
 
 Two views on one static site:
 
@@ -17,8 +18,10 @@ Two views on one static site:
    service period, and a **catchment score** for the trip generators within walking
    distance. Each stop has a detail view.
 
-Users can tinker: the **walk-time limit** (5–20 min slider), the **weights** that make up
-the score, the **decay curve**, the **service period**, and how map layers look.
+Users can tinker with few things (owner 2026-10-21: "very reasonable defaults, fewer
+sliders"): the three score **weights** (defaults fit to ridership), the **service
+period**, the stop coloring and how map layers look. The walk limit (10 min), decay
+(4 min half-life), destination categories and period weights are fixed in config.
 Everything adjustable is computed in the browser from precomputed data.
 
 Two halves, as in `../public-private-shore`:
@@ -68,11 +71,11 @@ A **for-fun learning project**. The owner is interested in GIS and transit.
 | Crossing penalty (2026-10-19, confirmed after review) | **Barrier-style**, implemented as the **corner model** (see [Walk network](#walk-network)): trunk/primary/secondary roads can only be crossed at signals or marked crossings, costing the expected wait plus the walk across. **Unmarked crossings of them stay forbidden** (owner kept this over Wisconsin's every-intersection-is-a-crosswalk rule). Waits per class in `config/road_classes.csv`. |
 | Population (2026-10-19) | **2020 Census blocks, split among parcels by dwelling units** (dasymetric). Madison parcels have `TotalDwellingUnits`; elsewhere units are estimated. Not capturing growth since 2020 is an accepted limitation. |
 | Jobs (2026-10-19) | **LEHD LODES 8 WAC, 2023**, at a point inside each block (lumping big suburban blocks is accepted). |
-| Destinations (2026-10-19) | **OSM POIs** with per-kind weights (`config/poi_categories.csv`); the site multiplies whole categories. |
-| Score (2026-10-19) | Each component (population, jobs, destinations) is summed with the **decay weight** of its walk time, **normalized 0–100 against the best stop at the same settings**, then weight-averaged. Decays: none, linear, exponential (half-life), S-curve (midpoint). Default: exponential, 8 min half-life, 10 min limit. |
+| Destinations (2026-10-19; revised 2026-10-21) | **Other destinations** = OSM POIs (per-kind weights in `config/poi_categories.csv` rank places *within* a category) with each category group's **total set by its share of trips in the 2022 NHTS** (urban trips; `config/trip_purposes.csv`, `config/destination_groups.csv`), plus **retail and health-care jobs** (LODES CNS07+CNS16) at a fitted points-per-job rate, since OSM can't tell a supermarket from a corner store. Both beat the hand weights in cross-validation against boardings (20/20 splits); jobs by industry *replacing* OSM did worse. No category sliders. |
+| Score (2026-10-19; revised 2026-10-21) | Three components, **Homes** (residents), **Jobs**, **Other destinations**, each summed with the **decay weight** of its walk time, **normalized 0–100 against the best stop**, then weight-averaged. **Fixed**: 10 min walk, exponential decay with a **4 min half-life** (owner's pick: the fit preferred 1–2 min by a small margin; 4 min keeps the 10-minute walk meaningful). Default weights fit to ridership (homes 5, jobs 0.5, other destinations 4). |
 | Blob rendering (2026-10-19) | Cumulative 1-minute bands stacked with per-band opacities solved so the **blob's opacity at time t follows the score's decay curve**. |
 | Licenses (2026-10-19) | **Same split as the sibling**: code GPL-3.0-or-later (`LICENSE`), docs CC BY-SA 4.0 (`LICENSE-DOCS`), outputs ODbL 1.0 with upstream attributions (`LICENSE-DATA`; required by OSM). |
-| Calibration (2026-10-20) | Fit the score's weights, decay and walk limit to **observed boardings per trip** (MPO, Feb 2024), shipped as a **preset button**; the default sliders stay as they were. Special stops (schools, campus, park-and-rides, airport, transfer points) found from **OSM + stop names**, left out of the fit. Leftovers shown as a **"Riders vs. expected" stop color** (owner's picks among options). |
+| Calibration (2026-10-20; revised 2026-10-21) | Fit the score's weights to **observed boardings per trip** (MPO, Feb 2024) at the fixed walk/decay; the fit **is the default** (the preset button went away with the walk/decay sliders). Special stops (schools, campus, park-and-rides, airport, transfer points) found from **OSM + stop names**, left out of the fit. Leftovers shown as a **"Riders vs. expected" stop color** (owner's picks among options). |
 | Site data in git (2026-10-19) | `site/public/data/` is **gitignored** until the owner is happy with it. |
 | Catchment file (2026-10-19) | All stops' blobs and spiderwebs in **one file**, `catchments.bin` (owner preference over one file per stop): a JSON index of byte ranges, then one raw-deflate record per stop (varint delta-encoded edge ids and coordinates, walk times as bytes in 10 s steps). The site fetches the index once and each selected stop's bytes with an HTTP range request, like PMTiles. 7.9 MB total (was 41 MB as JSON); ~9 kB per stop. Tried and rejected: storing the blob as non-overlapping rings (bigger: every boundary is stored twice). |
 
@@ -113,6 +116,7 @@ URLs, layers, fields, licenses and recon findings live in `config/sources.toml`.
 | **City of Madison tax parcels** (ArcGIS service) | Dwelling units per parcel (`TotalDwellingUnits`) |
 | **WI Statewide Parcel Map V12** | Parcels outside Madison (no unit count) |
 | **Protomaps** daily build | Basemap |
+| **2022 NHTS** (FHWA, public use v2.1) | Share of trips by destination purpose: sets destination group totals |
 | **MPO Metro Ridership by Stop** (Feb 2024, City open data) | Calibrating the score; riders vs. expected per stop |
 
 ## Architecture
@@ -145,6 +149,9 @@ exports in EPSG:4326.
 │   ├── sources.toml          # URLs, licenses, retrieval dates, recon notes
 │   ├── road_classes.csv      # OSM highway -> walkable? barrier? crossing waits
 │   ├── poi_categories.csv    # OSM tag -> destination category + weight (first match wins)
+│   ├── destination_groups.csv     # POI category -> trip-purpose group
+│   ├── trip_purposes.csv     # NHTS WHYTO code -> trip-purpose group (blank = not a destination)
+│   ├── special_stops.csv     # hand fixes to special stops (left out of the ridership fit)
 │   └── stop_merge_overrides.csv   # hand fixes to stop merging (merge/split)
 ├── pipeline/
 │   ├── Dockerfile, pyproject.toml, uv.lock
@@ -242,11 +249,21 @@ exports in EPSG:4326.
   `park_scale_min`–`park_scale_max` (owner set 0.5–2 on 2026-10-19, and botanical
   gardens to weight 3 instead of 10, after the Arboretum looked overweighted); polygons reachable from outline points every 75 m. Private ones dropped
   (`access=private/no`, `garden:type=residential/private`).
-- **Density map layer**: 150 m hexagons of population, jobs and destination points per
-  km². A destination area (park, garden, campus) spreads its weight over the hexes it
-  covers, by area; points count where they fall. Destinations are stored per category
-  (`d_<category>`) and the site sums them with the user's category weights, so the
-  category sliders recolor the layer.
+- **Destination totals by trip purpose** (2026-10-21; `transit purposes`, end of
+  `30_pois.sql`): weighted NHTS shares of urban trips to each purpose group (shopping 27 %,
+  meals 21 %, errands/civic/religious 16 %, school 12 %, exercise 10 %, recreation 8 %,
+  health 5 %, lodging 2 %) scale each group of categories so its total weight is that
+  share of the overall total (unchanged). Within a group the hand weights still decide:
+  recreation's 8 % goes mostly to parks, so bars, theatres and museums end up small.
+  Transit-only NHTS trips (100 to a destination nationally) were too few; they fit
+  ridership worse.
+- **Shop and clinic jobs** (`gen.points` kind `shopjobs`): retail + health-care jobs per
+  block, part of other destinations at `shop_jobs_weight` points per job (fit: 0.022).
+- **Density map layer**: 150 m hexagons of homes (residents), jobs and other destinations
+  per km². A destination area (park, garden, campus) spreads its weight over the hexes
+  it covers, by area; points count where they fall. Destinations are stored per category
+  (`d_<category>`) plus `shop_jobs_km2`; the site sums them with the fitted points per
+  shop job.
 
 ## Frontend
 
@@ -272,7 +289,11 @@ exports in EPSG:4326.
   sidebar, detail panel with "Show walkshed on map".
 - **Riders vs. expected**: a "Stops colored by" option (diverging red ↔ gray ↔ blue,
   hollow = no data), a drawer section with observed/expected and special-stop reasons,
-  a table column; "Use settings fitted to ridership" button above the weight sliders.
+  a table column.
+- **Settings**: three weight sliders (Homes, Jobs, Other destinations) with a "Reset to
+  the fitted defaults" link, and the service period. Walk limit, decay and period
+  weights come from `stops.json` settings (read-only `walkMin()`, `decay()`,
+  `periodWeights()` in `state/store.ts`).
 - **About tab**: methodology and sources.
 - Settings live in the URL (`state/url.ts`); `?stop=` accepts a merged-stop id or any
   platform's GTFS stop id.
@@ -294,19 +315,21 @@ The `fit` step (`70_validation/`, `fit.py`; runs in `make`, ~5 s, before `stops.
   name), inside a university/college polygon, park-and-rides (OSM `park_ride` lots or
   the name), the airport (name), transfer points (5+ routes). 101 stops. Fixes in
   `config/special_stops.csv` (`reason` = none clears a stop).
-- **Model**: the score's own formula fit to boardings per trip/h (weekday frequency):
-  `b0 + w_pop·pop + w_jobs·jobs + w_dest·dest`, non-negative, least squares on
-  log(1 + ·) (raw-scale least squares put all weight on destinations, driven by a few
-  big stops); half-life and walk limit searched over whole minutes; 600 stops fit (not
-  special, ≥ 0.5 trips/h).
-- **Result**: population 5, jobs 1.5, destinations 4.5 (0–5 sliders), 6 min walk, 3 min
-  half-life; R² 0.177 (5-fold CV 0.164) vs. 0.153 at the defaults; the walk limit
-  barely matters past 6 min. Rank correlation with boardings: score 0.52 at defaults,
-  frequency 0.77; the catchment explains a modest share of riders per trip.
-- **Site**: "Use settings fitted to ridership" (sets weights, decay, walk limit;
-  categories unchanged); stop color "Riders vs. expected" = (observed + 5) ÷
-  (expected + 5), expected = fit at the fitted settings × weekday frequency (fixed, not
-  the sliders); drawer section and table column. Report with correlations and the
+- **Model**: the score's own formula fit to boardings per trip/h (weekday frequency) at
+  the fixed walk/decay (`[score]`): `b0 + w_pop·pop + w_jobs·jobs + w_osm·osm +
+  w_shop·shop_jobs`, non-negative, least squares on log(1 + ·) (raw-scale least squares
+  put all weight on destinations, driven by a few big stops); 600 stops fit (not
+  special, ≥ 0.5 trips/h). osm and shop jobs fold into one slider: other destinations =
+  osm + (w_shop / w_osm) · shop_jobs.
+- **Result (2026-10-21)**: homes 5, jobs 0.5, other destinations 4 (0–5 sliders), 0.022
+  points per shop job; R² 0.168 (5-fold CV 0.152). By half-life at 10 min: 0.186 (1
+  min), 0.184 (2), 0.168 (4), 0.157 (8). History: the first fit (2026-10-20, walk and
+  half-life free, hand destination weights) chose a 6 min walk and 3 min half-life,
+  R² 0.177. Jobs get little weight once shop jobs are in. Rank correlation with
+  boardings: frequency 0.77; the catchment explains a modest share of riders per trip.
+- **Site**: default weights = the fit; stop color "Riders vs. expected" = (observed + 5)
+  ÷ (expected + 5), expected = the fit × weekday frequency (fixed, not the sliders);
+  drawer section and table column. Report with correlations and the
   biggest residuals: `data/build/validation/ridership.md`.
 - **BRT stations over-perform (owner reviewed 2026-10-21, left as is)**: the 19 stations
   have a median riders-vs-expected of ×4.3 (other Route A stops ×1.5, the rest ×1.02).
@@ -326,7 +349,8 @@ platform in exactly one merged stop; the owner's two merge examples; BRT station
 whole; platforms snap within 50 m; dasymetric population sums to the census; estimated
 units outside Madison near the census; Route A peak frequency plausible per direction (one-way and two-way stop); a 10-minute
 walkshed area plausible; no arterial crossing without signal/marking evidence; > 90 % of
-boardings matched; fitted settings inside the slider ranges.
+boardings matched; fitted settings inside the slider ranges; destination group totals
+match the trip shares.
 `npm run check` in `site/` runs Prettier, ESLint and tsc. No frontend test suite.
 
 Refactors of the pipeline are checked with checksums: the output is deterministic, so

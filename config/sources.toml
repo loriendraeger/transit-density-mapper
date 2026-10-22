@@ -208,3 +208,27 @@ before the BRT opened (September 2024). A newer APC-based estimate (April 2025) 
 only as a PDF map:
 https://www.cityofmadison.com/mpo/documents/maps--gis/print-maps/transportation-infrastructure/Ridership_By_Stop.pdf
 """
+
+[nhts]
+name = "2022 NextGen National Household Travel Survey (public use, v2.1)"
+publisher = "Federal Highway Administration / Oak Ridge National Laboratory"
+url = "https://nhts.ornl.gov/media/2022/download/csv.zip"
+landing = "https://nhts.ornl.gov/"
+fetch = "zip"
+local_path = "data/raw/nhts/tripv2pub.csv"
+format = "csv"
+license = "U.S. government work, public domain; cite as in the Citation.pdf in the download."
+attribution = "FHWA, 2022 National Household Travel Survey"
+retrieved = "2026-10-21"
+verified = true
+notes = """
+Sets each destination group's share of trips (`transit purposes` -> gen.purpose_shares;
+config/trip_purposes.csv maps WHYTO codes to groups, config/destination_groups.csv
+maps POI categories to groups). Trip file: WHYTO (purpose at the destination),
+TRIPMODE (03 = public transit), URBAN (01 = in an urban area), WTTRDFIN (trip weight).
+Codebook: https://nhts.ornl.gov/media/2022/doc/codebook.pdf. National sample: 7,893
+households, 31k trips, only 341 by transit (100 to a destination), too few for
+transit-only shares; urban trips (9.2k to a destination) are used instead. Checked
+against boardings (2026-10-21): urban shares beat the hand weights in 20 of 20
+cross-validation splits; transit-only shares did worse.
+"""

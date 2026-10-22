@@ -1,0 +1,15 @@
+category,group,note
+education,education,"Schools, colleges, kindergartens"
+health,health,
+food,food,
+retail,shop,"Shop and grocery share one survey purpose (buy goods); their totals keep today's ratio"
+grocery,shop,
+civic,civic,"Volunteering, errands, religious and community activities"
+venues,leisure,"Recreational activities: parks, movies, bars, museums; these six share one budget"
+nightlife,leisure,
+culture,leisure,
+attractions,leisure,
+parks,leisure,
+gardens,leisure,
+recreation,exercise,"Gyms, pools, sports centres"
+lodging,lodging,"Rest or relaxation/vacation"

@@ -16,6 +16,7 @@ WITH grid AS (
 SELECT row_number() OVER ()::int AS id, g.geom,
        coalesce((SELECT sum(pop::numeric) FROM gen.population p WHERE ST_Intersects(g.geom, p.geom)), 0)::float8 AS pop,
        coalesce((SELECT sum(jobs::numeric) FROM gen.jobs j WHERE ST_Intersects(g.geom, j.geom)), 0)::float8 AS jobs,
+       coalesce((SELECT sum(shop_jobs::numeric) FROM gen.jobs j WHERE ST_Intersects(g.geom, j.geom)), 0)::float8 AS shop_jobs,
        0::float8 AS dest
 FROM grid g;
 CREATE INDEX ON gen.hex USING gist (geom);

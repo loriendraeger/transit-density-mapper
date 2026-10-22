@@ -9,6 +9,8 @@ FROM gen.population
 UNION ALL
 SELECT 'jobs', id, NULL, jobs, geom FROM gen.jobs
 UNION ALL
+SELECT 'shopjobs', 's' || geoid, NULL, shop_jobs, geom FROM gen.jobs WHERE shop_jobs > 0
+UNION ALL
 SELECT 'poi', pp.poi_id, p.category, p.weight, pp.geom
 FROM gen.poi_points pp JOIN gen.pois p ON p.id = pp.poi_id;
 ALTER TABLE gen.points ADD COLUMN pid serial PRIMARY KEY;

@@ -120,3 +120,18 @@ def test_fit_is_usable(db):
     assert all(0 <= p[k] <= 5 for k in ("w_pop", "w_jobs", "w_dest"))
     assert max(p["w_pop"], p["w_jobs"], p["w_dest"]) == 5
     assert 0 < p["cv_r2"] <= p["r2"] < 1
+
+
+def test_destination_totals_follow_trip_shares(db):
+    """Each destination group's total weight matches its share of trips (NHTS)."""
+    worst = scalar(
+        db,
+        """
+        WITH g AS (
+            SELECT dg.grp, sum(p.weight) / (SELECT sum(weight) FROM gen.pois) AS share
+            FROM gen.pois p JOIN gen.dest_groups dg USING (category) GROUP BY dg.grp
+        )
+        SELECT max(abs(g.share - s.share)) FROM g JOIN gen.purpose_shares s USING (grp)
+        """,
+    )
+    assert worst < 1e-6

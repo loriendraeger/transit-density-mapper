@@ -66,6 +66,33 @@ WHERE p.category = q.category
   AND q.geom && p.geom
   AND ST_Contains(q.geom, ST_PointOnSurface(p.geom));
 
+-- Destination totals by trip purpose: each group of categories gets the share of trips
+-- made for its purpose (gen.purpose_shares, from the NHTS by `transit purposes`), while
+-- the overall total stays the same. Within a group, the poi_categories.csv weights (and
+-- the park area scaling) still rank places against each other.
+DROP TABLE IF EXISTS gen.dest_groups;
+CREATE TABLE gen.dest_groups (category text PRIMARY KEY, grp text, note text);
+\copy gen.dest_groups FROM 'config/destination_groups.csv' CSV HEADER
+DO $$
+BEGIN
+    IF EXISTS (SELECT DISTINCT category FROM gen.pois
+               EXCEPT SELECT category FROM gen.dest_groups) THEN
+        RAISE EXCEPTION 'a POI category is missing from config/destination_groups.csv';
+    END IF;
+END $$;
+WITH g AS (
+    SELECT dg.grp, sum(p.weight) AS total
+    FROM gen.pois p JOIN gen.dest_groups dg USING (category)
+    GROUP BY dg.grp
+),
+f AS (
+    SELECT g.grp, s.share * (SELECT sum(weight) FROM gen.pois) / g.total AS factor
+    FROM g JOIN gen.purpose_shares s USING (grp)
+)
+UPDATE gen.pois p SET weight = p.weight * f.factor
+FROM gen.dest_groups dg JOIN f USING (grp)
+WHERE dg.category = p.category;
+
 -- Access points: a point inside each POI, plus points along polygon outlines.
 DROP TABLE IF EXISTS gen.poi_points CASCADE;
 CREATE TABLE gen.poi_points AS
