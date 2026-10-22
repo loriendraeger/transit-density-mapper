@@ -56,3 +56,4 @@ shop,mall,retail,10,
 shop,*,retail,0.3,
 tourism,hotel,lodging,2,
 tourism,motel,lodging,1,
+aeroway,terminal,lodging,20,"Airport terminal: travel trips; the survey has no airport purpose, travel/vacation (lodging) is closest. Thousands of passengers a day vs. ~100 guests at a hotel"

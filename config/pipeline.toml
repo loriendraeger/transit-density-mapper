@@ -114,6 +114,9 @@ half_life_min = 4
 blob_buffer_m = 25
 blob_close_m = 40
 blob_simplify_m = 5
+# Holes smaller than this (hectares) are filled: a building ringed by reached paths, like
+# the airport terminal (0.8 ha), has no indoor paths in OSM but is reached.
+blob_fill_hole_ha = 2
 
 [tiles]
 minzoom = 10

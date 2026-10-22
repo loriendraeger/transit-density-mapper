@@ -354,6 +354,17 @@ def _encode(geom) -> list[list[list[int]]]:
     ]
 
 
+def _fill_holes(g, max_area: float):
+    """Fill holes smaller than max_area (m²): a building or courtyard ringed by reached
+    paths (no indoor paths in OSM) is reached, not a gap."""
+    polys = [
+        shapely.Polygon(p.exterior, [r for r in p.interiors if shapely.Polygon(r).area >= max_area])
+        for p in getattr(g, "geoms", [g])
+        if not p.is_empty
+    ]
+    return shapely.MultiPolygon(polys) if len(polys) > 1 else (polys[0] if polys else g)
+
+
 def _catchment(cid: str) -> tuple[str, bytes]:
     p = config.pipeline()
     max_s = p["walk"]["max_walk_min"] * 60
@@ -422,6 +433,7 @@ def _catchment(cid: str) -> tuple[str, bytes]:
         u = shapely.buffer(
             shapely.buffer(u, c["blob_close_m"], quad_segs=2), -c["blob_close_m"], quad_segs=2
         )
+        u = _fill_holes(u, c["blob_fill_hole_ha"] * 1e4)
         bands.append(shapely.simplify(u, c["blob_simplify_m"]))
 
     # Project all bands to lon/lat in one round trip.

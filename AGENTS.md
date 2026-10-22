@@ -234,7 +234,9 @@ exports in EPSG:4326.
   straight-line access distance ÷ speed. Totals per stop per 1-minute band
   (`catch.bands`), so the site can apply any limit and decay.
 - Blob polygons (export.py, Shapely): reachable edge pieces per minute, buffered 25 m,
-  closed by 40 m (grow then shrink, to fill blocks), simplified 5 m.
+  closed by 40 m (grow then shrink, to fill blocks), holes under 2 ha filled (buildings
+  ringed by reached paths have no indoor paths in OSM; owner 2026-10-21 after the
+  airport terminal showed as a gap), simplified 5 m.
 
 ### Trip generators
 
@@ -260,6 +262,10 @@ exports in EPSG:4326.
   recreation's 8 % goes mostly to parks, so bars, theatres and museums end up small.
   Transit-only NHTS trips (100 to a destination nationally) were too few; they fit
   ridership worse.
+- **Airport terminal** (2026-10-21): `aeroway=terminal`, weight 20, in the lodging
+  (travel) group: the survey has no airport purpose. The airport's LODES jobs sit at
+  block points 1.4–1.7 km away on the airfield side (big-block lumping), so the
+  terminal stop shows 0 jobs.
 - **Shop and clinic jobs** (`gen.points` kind `shopjobs`): retail + health-care jobs per
   block, part of other destinations at `shop_jobs_weight` points per job (fit: 0.022).
 - **Density map layer**: 150 m hexagons of homes (residents), jobs and other destinations
