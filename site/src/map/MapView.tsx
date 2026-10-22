@@ -46,7 +46,6 @@ import {
   blobOpacity,
   data,
   decay,
-  DEFAULT_WALK_MIN,
   densities,
   densityOpacity,
   flyRequest,
@@ -59,7 +58,6 @@ import {
   showSpiderweb,
   stopColor,
   walkMin,
-  weights,
 } from '../state/store'
 import {
   CATCHMENT,
@@ -232,7 +230,7 @@ export default function MapView(): JSX.Element {
       id: 'blob-hover-outline',
       type: 'line',
       source: 'blob-hover',
-      filter: ['==', ['get', 'band'], DEFAULT_WALK_MIN],
+      filter: ['==', ['get', 'band'], walkMin()],
       paint: {
         'line-color': mode === 'dark' ? '#f0efec' : '#2c2c2a',
         'line-width': 1.5,
@@ -529,17 +527,22 @@ export default function MapView(): JSX.Element {
 
     // Density layers: the selected generators, in GENERATORS order, get the hex pieces
     // (slot 0, 1, 2) of the layer matching their count.
-    /** A generator's density in a hex. Destinations: the per-category densities
-     * (d_<category>) weighted by the destination category weights, so re-weighting
-     * categories recolors the layer. */
+    /** A generator's density in a hex. Other destinations: the per-category point
+     * densities (d_<category>) plus retail/health-care jobs at the fitted points per job,
+     * the same mix the score uses. */
     function densityValue(g: Generator): ExpressionSpecification {
       if (g !== 'dest') {
         return ['get', DENSITY_FIELD[g]]
       }
-      const terms = Object.entries(weights().categories)
-        .filter(([, w]) => w > 0)
-        .map(([cat, w]): ExpressionSpecification => ['*', w, ['coalesce', ['get', `d_${cat}`], 0]])
-      return terms.length ? (['+', 0, ...terms] as ExpressionSpecification) : ['literal', 0]
+      const d = data()
+      const cats = (d?.measures ?? []).filter((x) => x.kind === 'poi').map((x) => x.id)
+      const terms = cats.map((cat): ExpressionSpecification => ['coalesce', ['get', `d_${cat}`], 0])
+      terms.push([
+        '*',
+        d?.settings.score.shop_jobs_weight ?? 0,
+        ['coalesce', ['get', 'shop_jobs_km2'], 0],
+      ])
+      return ['+', 0, ...terms] as ExpressionSpecification
     }
     function densityRamp(g: Generator): ExpressionSpecification {
       return stepExpr(densityValue(g), DENSITY_RAMPS[g][mode], DENSITY_BREAKS[g])

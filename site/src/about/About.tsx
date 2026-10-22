@@ -4,6 +4,17 @@ import { hoursLabel, PERIOD_LABELS } from '../components/Settings'
 import { PERIODS } from '../lib/contract'
 import { data } from '../state/store'
 
+const PURPOSE_LABELS: Record<string, string> = {
+  shop: 'shopping',
+  food: 'meals',
+  civic: 'errands, civic and religious',
+  education: 'school and childcare',
+  exercise: 'exercise',
+  leisure: 'recreation (parks, venues, museums, bars)',
+  health: 'health care',
+  lodging: 'lodging',
+}
+
 export default function About(): JSX.Element {
   return (
     <article class="about">
@@ -71,60 +82,84 @@ export default function About(): JSX.Element {
       <h2>What's in reach</h2>
       <ul>
         <li>
-          <strong>Population</strong>: 2020 Census block counts, spread over the block's parcels in
-          proportion to dwelling units, so an apartment building gets more people than the houses
-          next to it. City of Madison parcels list their units; elsewhere units are estimated (one
-          per house, apartment buildings by floor area from OpenStreetMap). Changes since 2020
-          aren't reflected.
+          <strong>Homes</strong>: residents. 2020 Census block counts, spread over the block's
+          parcels in proportion to dwelling units, so an apartment building gets more people than
+          the houses next to it. City of Madison parcels list their units; elsewhere units are
+          estimated (one per house, apartment buildings by floor area from OpenStreetMap). Changes
+          since 2020 aren't reflected.
         </li>
         <li>
           <strong>Jobs</strong>: LEHD LODES 2023 workplace counts per census block.
         </li>
         <li>
-          <strong>Destinations</strong>: OpenStreetMap places in categories (food, nightlife,
-          venues, culture, parks, grocery, health, education...), each weighted by kind: a café 1, a
-          supermarket 5, a hospital or the zoo 10; parks scale with their area. Large places count
-          from their nearest edge.
+          <strong>Other destinations</strong>: OpenStreetMap places (food, shops, civic buildings,
+          schools, parks, venues...) plus shops and clinics sized by their retail and health-care
+          jobs (LODES), since OpenStreetMap counts a supermarket and a corner store alike. Each
+          group's total follows its share of trips in the 2022 National Household Travel Survey
+          (trips in urban areas):
+          <Show when={data()}>
+            {(d) => (
+              <>
+                {' '}
+                {Object.entries(d().settings.purpose_shares)
+                  .map(([g, v]) => `${PURPOSE_LABELS[g] ?? g} ${String(Math.round(v * 100))} %`)
+                  .join(', ')}
+                .
+              </>
+            )}
+          </Show>{' '}
+          Within a group, places are weighted by kind (a supermarket more than a convenience store;
+          parks by area). Large places count from their nearest edge.
         </li>
       </ul>
 
       <h2>Score</h2>
-      <p>
-        Each of population, jobs and destinations is summed over the walkshed with the decay weight
-        of its walk time, then scaled 0–100 against the best stop. The score is their weighted
-        average. Everything inside the walk-time limit counts; nothing beyond it. People and places
-        within reach of several stops count for each of them.
-      </p>
+      <Show when={data()}>
+        {(d) => (
+          <p>
+            Each of homes, jobs and other destinations is summed over everything within a{' '}
+            {d().settings.score.walk_min}-minute walk, each counted less the farther it is (its
+            weight halves every {d().settings.score.half_life_min} minutes), then scaled 0–100
+            against the best stop. The score is their weighted average; the default weights (homes{' '}
+            {d().settings.score.weights.pop}, jobs {d().settings.score.weights.jobs}, other
+            destinations {d().settings.score.weights.dest}) are fit to ridership, below. People and
+            places within reach of several stops count for each of them.
+          </p>
+        )}
+      </Show>
 
-      <h2>Checked against ridership</h2>
+      <h2>Fit to ridership</h2>
       <Show when={data()?.settings.fit}>
         {(f) => (
           <>
             <p>
-              The default weights are guesses. To test them, the score is compared with weekday
-              boardings at each stop (Greater Madison MPO, February 2024, estimated from farebox and
-              bus-location records). Boardings depend heavily on how often the bus comes, so the fit
-              uses <em>boardings per trip</em>: the score's own formula (a weighted sum of the
-              catchment totals, plus a constant) fit on a log scale, with the decay half-life and
-              walk limit searched minute by minute. This is a simple form of the{' '}
-              <em>direct ridership model</em> transit agencies use.
+              The default weights come from weekday boardings at each stop (Greater Madison MPO,
+              February 2024, estimated from farebox and bus-location records). Boardings depend
+              heavily on how often the bus comes, so the fit uses <em>boardings per trip</em>: the
+              score's own formula (a weighted sum of the catchment totals, plus a constant) fit on a
+              log scale. This is a simple form of the <em>direct ridership model</em> transit
+              agencies use. The same data chose how destinations are counted: trip-purpose shares
+              and sizing shops and clinics by jobs both predicted ridership better than hand-set
+              weights.
             </p>
             <p>
-              Best fit: population {f().weights.pop}, jobs {f().weights.jobs}, destinations{' '}
-              {f().weights.dest}, a {f().walk_min}-minute walk limit and a {f().decay.param}
-              -minute half-life. It explains {Math.round(f().cv_r2 * 100)} % of the variation in
-              boardings per trip across {f().n_fit} stops (cross-validated): the catchment matters,
-              but most of what makes a stop busy is elsewhere, above all where its buses go.
-              Schools, campus, park-and-rides, the airport and transfer points (5+ routes) draw
-              riders a walkshed can't see, so they were left out of the fit.
+              The fit explains {Math.round(f().cv_r2 * 100)} % of the variation in boardings per
+              trip across {f().n_fit} stops (cross-validated): the catchment matters, but most of
+              what makes a stop busy is elsewhere, above all where its buses go. Schools, campus,
+              park-and-rides, the airport and transfer points (5+ routes) draw riders a walkshed
+              can't see, so they were left out of the fit. The data favored even shorter walks (a
+              1–2 minute half-life); 4 minutes is a compromise with the usual 5-minute planning
+              walk.
             </p>
             <p>
               <strong>Riders vs. expected</strong> (a stop color option) divides each stop's
               boardings by the fit's expectation from its catchment and service. Far fewer riders
               than expected can mean a stop crowded by a neighbor, a route that goes nowhere useful,
               or a barrier the walk model misses; far more, a draw the catchment doesn't count.
-              Caveats: the ridership predates the BRT (September 2024), and service has partly gone
-              where riders already were, so frequency also stands in for demand.
+              Caveats: the ridership predates the BRT (September 2024), so the BRT stations, likely
+              sited where the old Route A's riders already were, sit far above expectations; and
+              service has partly gone where riders already were, so frequency also stands in for
+              demand.
             </p>
           </>
         )}

@@ -229,17 +229,6 @@ button.primary {
   padding: 6px 12px;
   cursor: pointer;
 }
-button.primary:disabled {
-  color: var(--ink-2);
-  background: var(--hairline);
-  cursor: default;
-}
-.fit-preset {
-  margin: 4px 0 12px;
-}
-.fit-preset .hint {
-  margin-top: 6px;
-}
 .back {
   margin-bottom: 8px;
 }
@@ -296,28 +285,6 @@ input[type='search'] {
   border: 1px solid var(--hairline);
   border-radius: 6px;
   padding: 5px 8px;
-}
-.row {
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-}
-.row .field {
-  flex: 1;
-}
-.curve {
-  width: 120px;
-  height: 36px;
-  margin-bottom: 8px;
-}
-.curve path {
-  fill: none;
-  stroke: var(--catchment);
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-.curve .axis {
-  stroke: var(--hairline);
 }
 .check {
   display: flex;

@@ -1,5 +1,6 @@
-// Catchment scores and frequencies, computed in the browser from stops.json so every
-// setting (walk time, decay, weights, period) applies instantly.
+// Catchment scores and frequencies, computed in the browser from stops.json so the
+// weights and the service period apply instantly. The walk limit and decay are fixed by
+// the pipeline (pipeline.toml [score]); the decay stays general for the blob shading.
 
 import { type Period, PERIODS, type Stop, type StopsFile } from './contract'
 
@@ -9,24 +10,6 @@ export interface Decay {
   kind: DecayKind
   /** exponential: half-life (minutes); logistic: midpoint (minutes). */
   param: number
-}
-
-export const DECAYS: Record<DecayKind, { label: string; param?: string; hint: string }> = {
-  none: { label: 'None', hint: 'Everything within the walk time counts fully.' },
-  linear: {
-    label: 'Linear',
-    hint: 'Weight falls in a straight line from 1 at the stop to 0 at the walk-time limit.',
-  },
-  exponential: {
-    label: 'Exponential',
-    param: 'Half-life (min)',
-    hint: 'Weight halves every half-life: steep near the stop, long tail.',
-  },
-  logistic: {
-    label: 'S-curve',
-    param: 'Midpoint (min)',
-    hint: 'Close to 1 until near the midpoint, then drops off quickly.',
-  },
 }
 
 /** Weight of something t minutes' walk away (cutoff: the walk-time limit). */
@@ -54,12 +37,11 @@ export function bandWeights(d: Decay, cutoff: number, nBands: number, bandMin: n
   )
 }
 
+/** Score weights: homes (residents), jobs, other destinations. */
 export interface Weights {
   pop: number
   jobs: number
   dest: number
-  /** POI category -> weight within destinations. */
-  categories: Record<string, number>
 }
 
 export interface Settings {
@@ -68,14 +50,19 @@ export interface Settings {
   weights: Weights
   period: Period | 'aggregate'
   periodWeights: Record<Period, number>
+  /** Destination points per retail/health-care job (stops.json settings.score). */
+  shopJobsWeight: number
 }
+
+/** Pseudo-category for the retail and health-care jobs part of other destinations. */
+export const SHOP_JOBS = 'shops and clinics'
 
 export interface Components {
   pop: number
   jobs: number
-  /** Weighted sum of destination points over categories. */
+  /** Destination points over categories plus weighted retail/health-care jobs. */
   dest: number
-  /** Per-category weighted points (before the destinations weight). */
+  /** Points per category (and SHOP_JOBS), before the destinations weight. */
   categories: Record<string, number>
 }
 
@@ -92,7 +79,12 @@ export interface Scored {
   rank: number
 }
 
-export function rawComponents(stop: Stop, bw: number[], weights: Weights): Components {
+export function rawComponents(
+  stop: Stop,
+  bw: number[],
+  poiCategories: string[],
+  shopJobsWeight: number,
+): Components {
   function sum(id: string): number {
     const v = stop.bands[id] ?? []
     let s = 0
@@ -102,12 +94,11 @@ export function rawComponents(stop: Stop, bw: number[], weights: Weights): Compo
     return s
   }
   const categories: Record<string, number> = {}
-  let dest = 0
-  for (const [cat, w] of Object.entries(weights.categories)) {
-    const v = sum(cat) * w
-    categories[cat] = v
-    dest += v
+  for (const cat of poiCategories) {
+    categories[cat] = sum(cat)
   }
+  categories[SHOP_JOBS] = sum('shopjobs') * shopJobsWeight
+  const dest = Object.values(categories).reduce((a, b) => a + b, 0)
   return { pop: sum('pop'), jobs: sum('jobs'), dest, categories }
 }
 
@@ -140,7 +131,8 @@ export function stopFreq(stop: Stop, s: Settings): number {
 export function scoreAll(data: StopsFile, s: Settings): Scored[] {
   const nBands = data.settings.max_walk_min / data.settings.band_min
   const bw = bandWeights(s.decay, s.walkMin, nBands, data.settings.band_min)
-  const raws = data.stops.map((stop) => rawComponents(stop, bw, s.weights))
+  const cats = data.measures.filter((m) => m.kind === 'poi').map((m) => m.id)
+  const raws = data.stops.map((stop) => rawComponents(stop, bw, cats, s.shopJobsWeight))
   function max(k: 'pop' | 'jobs' | 'dest'): number {
     return Math.max(1e-9, ...raws.map((r) => r[k]))
   }

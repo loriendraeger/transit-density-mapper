@@ -29,9 +29,12 @@ export type Generator = 'pop' | 'jobs' | 'dest'
 export const GENERATORS: Generator[] = ['pop', 'jobs', 'dest']
 
 export const GENERATOR_LABELS: Record<Generator, { label: string; unit: string }> = {
-  pop: { label: 'Population', unit: 'Residents per km²' },
+  pop: { label: 'Homes', unit: 'Residents per km²' },
   jobs: { label: 'Jobs', unit: 'Jobs per km²' },
-  dest: { label: 'Destinations', unit: 'Destination points per km² (food, venues, parks...)' },
+  dest: {
+    label: 'Other destinations',
+    unit: 'Destination points per km² (places weighted by trip purpose; shops and clinics by jobs)',
+  },
 }
 
 /** Density ramps, low -> high; dark mode runs from the surface up. */
@@ -66,11 +69,12 @@ export const RIDERS_BREAKS = [0.25, 0.5, 0.8, 1.25, 2, 4]
 /** Class breaks for the score ramp (0-100). */
 export const SCORE_BREAKS = [20, 40, 60, 80]
 
-/** Density breaks per km2 (destinations: roughly the 60th-95th percentile of hexes). */
+/** Density breaks per km2 (destinations: roughly the 60th-95th percentile of hexes,
+ * points plus shop and clinic jobs at the fitted rate; 2026-10-21). */
 export const DENSITY_BREAKS: Record<Generator, number[]> = {
   pop: [1000, 2500, 5000, 10000],
   jobs: [1000, 3000, 10000, 30000],
-  dest: [20, 50, 100, 200],
+  dest: [10, 30, 100, 250],
 }
 
 /** Hex attribute holding each generator's density (destinations are summed from

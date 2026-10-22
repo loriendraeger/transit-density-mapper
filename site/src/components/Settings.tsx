@@ -1,21 +1,15 @@
 import { For, type JSX, Show } from 'solid-js'
 
 import { type Period, PERIODS } from '../lib/contract'
-import { type DecayKind, DECAYS, decayWeight } from '../lib/scoring'
 import {
-  applyFit,
   data,
-  decay,
-  fitActive,
+  defaultWeights,
   period,
   periodWeights,
-  setDecay,
   setPeriod,
-  setPeriodWeights,
-  setWalkMin,
   setWeights,
-  walkMin,
   weights,
+  weightsAreDefault,
 } from '../state/store'
 
 export const PERIOD_LABELS: Record<Period | 'aggregate', string> = {
@@ -41,26 +35,11 @@ function clock(h: number): string {
   return `${String(twelve)}${suffix}`
 }
 
-/** Tiny SVG of the decay curve over 0..walk minutes. */
-function DecayCurve(): JSX.Element {
-  const W = 120
-  const H = 36
-  function path(): string {
-    const limit = walkMin()
-    const pts: string[] = []
-    for (let i = 0; i <= 40; i++) {
-      const t = (i / 40) * limit
-      const w = decayWeight(decay(), t, limit)
-      pts.push(`${String((i / 40) * W)},${String(H - 2 - w * (H - 4))}`)
-    }
-    return `M${pts.join('L')}`
+function resetWeights(): void {
+  const d = data()
+  if (d) {
+    setWeights(defaultWeights(d))
   }
-  return (
-    <svg class="curve" viewBox={`0 0 ${String(W)} ${String(H)}`} aria-hidden="true">
-      <line x1="0" y1={H - 2} x2={W} y2={H - 2} class="axis" />
-      <path d={path()} />
-    </svg>
-  )
 }
 
 function Slider(props: {
@@ -93,72 +72,11 @@ function Slider(props: {
 }
 
 export default function Settings(): JSX.Element {
-  function categories(): string[] {
-    return (data()?.measures ?? []).filter((m) => m.kind === 'poi').map((m) => m.id)
-  }
   return (
     <section class="settings">
-      <h2>Walk</h2>
-      <Slider
-        label="Walk time limit"
-        value={walkMin()}
-        min={5}
-        max={data()?.settings.max_walk_min ?? 20}
-        step={1}
-        onInput={setWalkMin}
-        format={(v) => `${String(v)} min`}
-      />
-      <div class="row">
-        <label class="field">
-          <span>Distance decay</span>
-          <select
-            value={decay().kind}
-            onChange={(e) => {
-              const kind = e.currentTarget.value as DecayKind
-              setDecay({ kind, param: kind === 'logistic' ? 10 : 8 })
-            }}
-          >
-            <For each={Object.entries(DECAYS)}>
-              {([k, d]) => <option value={k}>{d.label}</option>}
-            </For>
-          </select>
-        </label>
-        <DecayCurve />
-      </div>
-      <Show when={DECAYS[decay().kind].param}>
-        {(label) => (
-          <Slider
-            label={label()}
-            value={decay().param}
-            min={1}
-            max={20}
-            step={0.5}
-            onInput={(v) => {
-              setDecay({ ...decay(), param: v })
-            }}
-          />
-        )}
-      </Show>
-      <p class="hint">{DECAYS[decay().kind].hint}</p>
-
       <h2>Score weights</h2>
-      <Show when={data()?.settings.fit}>
-        {(f) => (
-          <div class="fit-preset">
-            <button type="button" class="primary" onClick={applyFit} disabled={fitActive()}>
-              {fitActive() ? 'Using fitted settings' : 'Use settings fitted to ridership'}
-            </button>
-            <p class="hint">
-              Population {f().weights.pop}, jobs {f().weights.jobs}, destinations {f().weights.dest}
-              ; {f().walk_min} min walk, {f().decay.param} min half-life. Fit to weekday boardings
-              per trip at {f().n_fit} stops (Feb 2024); explains {Math.round(f().cv_r2 * 100)} % of
-              the variation (cross-validated). See About.
-            </p>
-          </div>
-        )}
-      </Show>
       <Slider
-        label="Population"
+        label="Homes"
         value={weights().pop}
         min={0}
         max={5}
@@ -174,34 +92,34 @@ export default function Settings(): JSX.Element {
         onInput={(v) => setWeights({ ...weights(), jobs: v })}
       />
       <Slider
-        label="Destinations"
+        label="Other destinations"
         value={weights().dest}
         min={0}
         max={5}
         step={0.5}
         onInput={(v) => setWeights({ ...weights(), dest: v })}
       />
-      <details class="sub">
-        <summary>Destination categories</summary>
-        <p class="hint">
-          Each place already carries a weight by kind (a zoo counts more than a café; see About).
-          These multiply whole categories, in the scores and on the map's destinations layer.
-        </p>
-        <For each={categories()}>
-          {(cat) => (
-            <Slider
-              label={cat.charAt(0).toUpperCase() + cat.slice(1)}
-              value={weights().categories[cat] ?? 1}
-              min={0}
-              max={5}
-              step={0.5}
-              onInput={(v) => {
-                setWeights({ ...weights(), categories: { ...weights().categories, [cat]: v } })
-              }}
-            />
-          )}
-        </For>
-      </details>
+      <Show when={data()}>
+        {(d) => (
+          <p class="hint">
+            <Show
+              when={weightsAreDefault()}
+              fallback={
+                <>
+                  <button type="button" class="link" onClick={resetWeights}>
+                    Reset to the fitted defaults
+                  </button>
+                  .
+                </>
+              }
+            >
+              Defaults fit to weekday boardings (see About).
+            </Show>{' '}
+            Everything within a {d().settings.score.walk_min}-minute walk counts, halving every{' '}
+            {d().settings.score.half_life_min} minutes.
+          </p>
+        )}
+      </Show>
 
       <h2>Frequency</h2>
       <label class="field">
@@ -221,31 +139,13 @@ export default function Settings(): JSX.Element {
         {(d) => (
           <p class="hint">
             {period() === 'aggregate'
-              ? 'Average trips per hour over the periods below, weighted by the hours each stands for.'
-              : `Trips per hour, ${hoursLabel(d().settings.periods[period() as Period].hours)}.`}
+              ? `Average trips per hour over the week, each period weighted by the hours it stands for (${PERIODS.map((p) => `${PERIOD_LABELS[p].toLowerCase()} ${String(periodWeights()[p])} h`).join(', ')}).`
+              : `Trips per hour, ${hoursLabel(d().settings.periods[period() as Period].hours)}.`}{' '}
+            Per direction: each route counts the average of its directions at the stop, then routes
+            add up.
           </p>
         )}
       </Show>
-      <p class="hint">
-        Per direction: each route counts the average of its directions at the stop, then routes add
-        up.
-      </p>
-      <details class="sub">
-        <summary>Weighted-week period weights</summary>
-        <For each={PERIODS}>
-          {(p) => (
-            <Slider
-              label={PERIOD_LABELS[p]}
-              value={periodWeights()[p]}
-              min={0}
-              max={100}
-              step={1}
-              onInput={(v) => setPeriodWeights({ ...periodWeights(), [p]: v })}
-              format={(v) => `${String(v)} h`}
-            />
-          )}
-        </For>
-      </details>
     </section>
   )
 }

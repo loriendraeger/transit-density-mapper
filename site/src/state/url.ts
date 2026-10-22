@@ -2,42 +2,29 @@ import { useLocation, useNavigate, useSearchParams } from '@solidjs/router'
 import { createEffect, createSignal, on } from 'solid-js'
 
 import { type Period, PERIODS } from '../lib/contract'
-import { type DecayKind, DECAYS } from '../lib/scoring'
 import { GENERATORS } from '../map/colors'
 import {
   data,
-  decay,
-  DEFAULT_DECAY,
-  DEFAULT_WALK_MIN,
-  defaultPeriodWeights,
   defaultWeights,
   densities,
   flyTo,
   period,
-  periodWeights,
   selectedId,
-  setDecay,
   setDensities,
   setPeriod,
-  setPeriodWeights,
   setSelectedId,
   setView,
-  setWalkMin,
   setWeights,
   type View,
-  walkMin,
   weights,
+  weightsAreDefault,
 } from './store'
 
 // The URL mirrors the settings both ways, so a view can be shared. Hash routes (GitHub
 // Pages has no SPA fallback): #/map, #/stops, #/about. Search params (defaults omitted):
 //   stop=183                  selected stop (cluster id)
-//   walk=15                   walk-time limit, minutes
-//   decay=linear | exponential:8 | logistic:10 | none
-//   w=1,1,2                   weights: population, jobs, destinations
-//   cw=food:2,parks:0         destination category weights that differ from 1
+//   w=4,0.5,5                 weights: homes, jobs, other destinations (default: fitted)
 //   period=peak|offpeak|saturday|sunday   (default: weighted aggregate)
-//   pw=30,50,12,12            aggregate's period weights (peak, offpeak, sat, sun)
 //   density=pop,jobs,dest | none   hex layers shown (default: pop)
 
 type Params = Record<string, string | undefined>
@@ -55,36 +42,14 @@ function applyParams(p: Params): void {
   if (!d) {
     return
   }
-  setWalkMin(num(p.walk, 5, d.settings.max_walk_min) ?? DEFAULT_WALK_MIN)
-
-  const [kind, param] = (p.decay ?? '').split(':')
-  if (kind && kind in DECAYS) {
-    setDecay({ kind: kind as DecayKind, param: num(param, 0.5, 30) ?? DEFAULT_DECAY.param })
-  } else {
-    setDecay(DEFAULT_DECAY)
-  }
-
   const w = defaultWeights(d)
   const [wp, wj, wd] = (p.w ?? '').split(',')
   w.pop = num(wp, 0, 10) ?? w.pop
   w.jobs = num(wj, 0, 10) ?? w.jobs
   w.dest = num(wd, 0, 10) ?? w.dest
-  for (const part of (p.cw ?? '').split(',')) {
-    const [cat, v] = part.split(':')
-    const n = num(v, 0, 10)
-    if (cat && cat in w.categories && n !== null) {
-      w.categories[cat] = n
-    }
-  }
   setWeights(w)
 
   setPeriod(PERIODS.includes(p.period as Period) ? (p.period as Period) : 'aggregate')
-  const pw = defaultPeriodWeights(d)
-  const pws = (p.pw ?? '').split(',')
-  PERIODS.forEach((k, i) => {
-    pw[k] = num(pws[i], 0, 1000) ?? pw[k]
-  })
-  setPeriodWeights(pw)
   const wanted = (p.density ?? 'pop').split(',')
   setDensities(GENERATORS.filter((g) => wanted.includes(g)))
 
@@ -115,31 +80,11 @@ export function currentParams(): Params {
   if (!d) {
     return {}
   }
-  const dec = decay()
   const w = weights()
-  const dw = defaultWeights(d)
-  const cw = Object.entries(w.categories)
-    .filter(([cat, v]) => v !== dw.categories[cat])
-    .map(([cat, v]) => `${cat}:${String(v)}`)
-  const pw = periodWeights()
-  const dpw = defaultPeriodWeights(d)
-  const pwChanged = PERIODS.some((k) => pw[k] !== dpw[k])
-  const decayDefault = dec.kind === DEFAULT_DECAY.kind && dec.param === DEFAULT_DECAY.param
   return {
     stop: selectedId() ?? undefined,
-    walk: walkMin() === DEFAULT_WALK_MIN ? undefined : String(walkMin()),
-    decay: decayDefault
-      ? undefined
-      : DECAYS[dec.kind].param
-        ? `${dec.kind}:${String(dec.param)}`
-        : dec.kind,
-    w:
-      w.pop === 1 && w.jobs === 1 && w.dest === 1
-        ? undefined
-        : [w.pop, w.jobs, w.dest].map(String).join(','),
-    cw: cw.length ? cw.join(',') : undefined,
+    w: weightsAreDefault() ? undefined : [w.pop, w.jobs, w.dest].map(String).join(','),
     period: period() === 'aggregate' ? undefined : period(),
-    pw: pwChanged ? PERIODS.map((k) => String(pw[k])).join(',') : undefined,
     density: densityParam(),
   }
 }

@@ -12,52 +12,53 @@ export const [view, setView] = createSignal<View>('map')
 export const [data, setData] = createSignal<StopsFile | null>(null)
 export const [loadError, setLoadError] = createSignal<string | null>(null)
 
-// --- scoring settings (all in the URL; see url.ts) ---------------------------------
+// --- scoring settings ---------------------------------------------------------------
+// Fixed by the pipeline (pipeline.toml [score]; owner 2026-10-21): walk limit, decay
+// and period weights. The user picks the weights (in the URL; see url.ts) and period.
 
-export const DEFAULT_WALK_MIN = 10
-export const DEFAULT_DECAY: Decay = { kind: 'exponential', param: 8 }
-
-export const [walkMin, setWalkMin] = createSignal(DEFAULT_WALK_MIN)
-export const [decay, setDecay] = createSignal<Decay>(DEFAULT_DECAY)
-export const [weights, setWeights] = createSignal<Weights>({
-  pop: 1,
-  jobs: 1,
-  dest: 1,
-  categories: {},
-})
-export const [period, setPeriod] = createSignal<Period | 'aggregate'>('aggregate')
-export const [periodWeights, setPeriodWeights] = createSignal<Record<Period, number>>({
-  peak: 30,
-  offpeak: 50,
-  saturday: 12,
-  sunday: 12,
-})
-
-/** Defaults that come from the data (category list, pipeline settings). */
-export function defaultWeights(d: StopsFile): Weights {
-  const categories: Record<string, number> = {}
-  for (const m of d.measures) {
-    if (m.kind === 'poi') {
-      categories[m.id] = 1
-    }
-  }
-  return { pop: 1, jobs: 1, dest: 1, categories }
+/** Walk-time limit, minutes (fixed). */
+export function walkMin(): number {
+  return data()?.settings.score.walk_min ?? 10
 }
 
-export function defaultPeriodWeights(d: StopsFile): Record<Period, number> {
-  const p = d.settings.periods
+/** Distance decay (fixed): exponential with the configured half-life. */
+export function decay(): Decay {
+  return { kind: 'exponential', param: data()?.settings.score.half_life_min ?? 4 }
+}
+
+/** Weighted-week period weights (fixed: hours per week each period stands for). */
+export function periodWeights(): Record<Period, number> {
+  const p = data()?.settings.periods
   return {
-    peak: p.peak.weight,
-    offpeak: p.offpeak.weight,
-    saturday: p.saturday.weight,
-    sunday: p.sunday.weight,
+    peak: p?.peak.weight ?? 30,
+    offpeak: p?.offpeak.weight ?? 50,
+    saturday: p?.saturday.weight ?? 12,
+    sunday: p?.sunday.weight ?? 12,
   }
+}
+
+/** Default weights: fit to observed boardings by the pipeline. */
+export function defaultWeights(d: StopsFile): Weights {
+  return { ...d.settings.score.weights }
+}
+
+export const [weights, setWeights] = createSignal<Weights>({ pop: 1, jobs: 1, dest: 1 })
+export const [period, setPeriod] = createSignal<Period | 'aggregate'>('aggregate')
+
+/** Whether the weights are the defaults. */
+export function weightsAreDefault(): boolean {
+  const d = data()
+  const w = weights()
+  if (!d) {
+    return true
+  }
+  const dw = d.settings.score.weights
+  return w.pop === dw.pop && w.jobs === dw.jobs && w.dest === dw.dest
 }
 
 /** Called once stops.json arrives, before the URL is applied. */
 export function initFromData(d: StopsFile): void {
   setWeights(defaultWeights(d))
-  setPeriodWeights(defaultPeriodWeights(d))
   setData(d)
 }
 
@@ -68,6 +69,7 @@ export const settings = createRoot(() =>
     weights: weights(),
     period: period(),
     periodWeights: periodWeights(),
+    shopJobsWeight: data()?.settings.score.shop_jobs_weight ?? 0,
   })),
 )
 
@@ -101,33 +103,6 @@ export const [showSpiderweb, setShowSpiderweb] = createSignal(true)
 export const [showCrossings, setShowCrossings] = createSignal(false)
 export const [showRoutes, setShowRoutes] = createSignal(true)
 export const [blobOpacity, setBlobOpacity] = createSignal(0.5)
-/** The settings fit to observed boardings: walk limit, decay and the three weights
- * (destination categories keep their weights). */
-export function applyFit(): void {
-  const f = data()?.settings.fit
-  if (!f) {
-    return
-  }
-  setWalkMin(f.walk_min)
-  setDecay({ kind: f.decay.kind, param: f.decay.param })
-  setWeights({ ...weights(), ...f.weights })
-}
-
-/** Whether the current walk limit, decay and weights are the fitted ones. */
-export function fitActive(): boolean {
-  const f = data()?.settings.fit
-  const w = weights()
-  return (
-    !!f &&
-    walkMin() === f.walk_min &&
-    decay().kind === f.decay.kind &&
-    decay().param === f.decay.param &&
-    w.pop === f.weights.pop &&
-    w.jobs === f.weights.jobs &&
-    w.dest === f.weights.dest
-  )
-}
-
 /** What stop circles are colored by. */
 export type StopColor = 'score' | 'freq' | 'riders'
 export const [stopColor, setStopColor] = createSignal<StopColor>('score')

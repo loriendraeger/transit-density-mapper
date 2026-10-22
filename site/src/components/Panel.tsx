@@ -198,7 +198,7 @@ function Layers(): JSX.Element {
       </label>
       <Check label="Route lines" checked={showRoutes()} onChange={setShowRoutes} />
       <Check label="Walking-path spiderweb" checked={showSpiderweb()} onChange={setShowSpiderweb} />
-      <Check label="Destinations (zoom in)" checked={showPois()} onChange={setShowPois} />
+      <Check label="Destination places (zoom in)" checked={showPois()} onChange={setShowPois} />
       <Check
         label="Arterial crossings the walk model allows"
         checked={showCrossings()}

@@ -64,7 +64,7 @@ export default function StopTable(props: {
     }),
     helper.accessor((s) => s.norm.pop, {
       id: 'pop',
-      header: 'Population',
+      header: 'Homes',
       sortFn: 'basic',
       cell: (c) => fmt(c.getValue(), 0),
     }),
@@ -76,7 +76,7 @@ export default function StopTable(props: {
     }),
     helper.accessor((s) => s.norm.dest, {
       id: 'dest',
-      header: 'Destinations',
+      header: 'Other dest.',
       sortFn: 'basic',
       cell: (c) => fmt(c.getValue(), 0),
     }),

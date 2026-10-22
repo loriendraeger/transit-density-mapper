@@ -162,7 +162,7 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
 
       <h2>What's within {walkMin()} minutes</h2>
       <Meter
-        label="Population"
+        label="Homes"
         value={props.s.norm.pop}
         detail={`${compact(within('pop'))} residents (2020 Census, placed by dwelling units)`}
       />
@@ -172,7 +172,7 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
         detail={`${compact(within('jobs'))} jobs (LODES 2023)`}
       />
       <Meter
-        label="Destinations"
+        label="Other destinations"
         value={props.s.norm.dest}
         detail={
           topCategories().length

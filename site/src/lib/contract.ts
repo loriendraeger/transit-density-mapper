@@ -8,7 +8,7 @@ export const DAY_TYPES: DayType[] = ['weekday', 'saturday', 'sunday']
 
 export interface Measure {
   id: string
-  kind: 'pop' | 'jobs' | 'poi'
+  kind: 'pop' | 'jobs' | 'shopjobs' | 'poi'
   label: string
   /** POI categories: number of places. */
   count?: number
@@ -45,11 +45,18 @@ export interface Stop {
   special: string[]
 }
 
-/** Score settings fit to observed boardings (pipeline fit.py). */
-export interface FitSettings {
+/** Fixed score settings and default weights (pipeline.toml [score], fit.py). */
+export interface ScoreSettings {
   walk_min: number
-  decay: { kind: 'exponential'; param: number }
+  half_life_min: number
+  /** Default slider weights, fit to observed boardings. */
   weights: { pop: number; jobs: number; dest: number }
+  /** Other destinations = POI points + this x retail and health-care jobs. */
+  shop_jobs_weight: number
+}
+
+/** How well the fit did (pipeline fit.py). */
+export interface FitSettings {
   /** R² of log boardings per trip/h, in-sample and cross-validated. */
   r2: number
   cv_r2: number
@@ -82,6 +89,9 @@ export interface StopsFile {
     band_min: number
     cluster_max_diameter_m: number
     periods: Record<Period, PeriodSetting>
+    score: ScoreSettings
+    /** Share of destination trips by purpose group (NHTS), setting each group's total. */
+    purpose_shares: Record<string, number>
     fit: FitSettings
   }
   sources: Record<string, Source>
