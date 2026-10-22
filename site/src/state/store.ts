@@ -69,7 +69,8 @@ export function activePreset(): PresetName | null {
       p.halfLife === halfLife() &&
       p.weights.pop === w.pop &&
       p.weights.jobs === w.jobs &&
-      p.weights.dest === w.dest
+      p.weights.dest === w.dest &&
+      p.weights.transit === w.transit
     ) {
       return name
     }
@@ -93,7 +94,12 @@ export function defaultWeights(d: StopsFile): Weights {
   return { ...d.settings.score.weights }
 }
 
-export const [weights, setWeights] = createSignal<Weights>({ pop: 1, jobs: 1, dest: 1 })
+export const [weights, setWeights] = createSignal<Weights>({
+  pop: 1,
+  jobs: 1,
+  dest: 1,
+  transit: 1,
+})
 export const [period, setPeriod] = createSignal<Period | 'aggregate'>('aggregate')
 
 /** Whether the weights are the defaults. */
@@ -104,7 +110,7 @@ export function weightsAreDefault(): boolean {
     return true
   }
   const dw = d.settings.score.weights
-  return w.pop === dw.pop && w.jobs === dw.jobs && w.dest === dw.dest
+  return w.pop === dw.pop && w.jobs === dw.jobs && w.dest === dw.dest && w.transit === dw.transit
 }
 
 /** Called once stops.json arrives, before the URL is applied. */
@@ -154,11 +160,13 @@ export const [densities, setDensities] = createSignal<Generator[]>(['pop'])
 export const [densityOpacity, setDensityOpacity] = createSignal(0.45)
 export const [showPois, setShowPois] = createSignal(false)
 export const [showSpiderweb, setShowSpiderweb] = createSignal(true)
+/** The selected stop's transit isochrone (hexes by travel time by transit). */
+export const [showTransitReach, setShowTransitReach] = createSignal(false)
 export const [showCrossings, setShowCrossings] = createSignal(false)
 export const [showRoutes, setShowRoutes] = createSignal(true)
 export const [blobOpacity, setBlobOpacity] = createSignal(0.5)
 /** What stop circles are colored by. */
-export type StopColor = 'score' | 'freq' | 'riders' | 'adds'
+export type StopColor = 'score' | 'freq' | 'transit' | 'riders' | 'adds'
 export const [stopColor, setStopColor] = createSignal<StopColor>('score')
 
 /** Ask the map to fly to a stop (from the table or the URL). */

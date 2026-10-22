@@ -46,6 +46,10 @@ export interface Stop {
   /** What the stop adds over the next-best stop on its routes, at the default walk limit
    * and half-life: decay-weighted totals in full and added, by group (pop, jobs,
    * shopjobs, poi), and residents in reach / who'd walk 2+ minutes more without it. */
+  /** Reached by transit (access_band_min bands, at the score's percentile): jobs, OSM
+   * destination points, retail/health-care jobs from the stop; homes = residents who can
+   * reach the stop. */
+  access: Record<'jobs' | 'osm' | 'shopjobs' | 'homes', number[]> | null
   overlap: {
     full: Partial<Record<'pop' | 'jobs' | 'shopjobs' | 'poi', number>>
     added: Partial<Record<'pop' | 'jobs' | 'shopjobs' | 'poi', number>>
@@ -59,21 +63,42 @@ export interface ScoreSettings {
   walk_min: number
   half_life_min: number
   /** Default slider weights, fit to observed boardings. */
-  weights: { pop: number; jobs: number; dest: number }
+  weights: ScoreWeights
   /** Other destinations = POI points + this x retail and health-care jobs. */
   shop_jobs_weight: number
+  /** Transit connections: gravity over Stop.access bands (pipeline access.py, fit.py). */
+  access: {
+    percentile: number
+    half_life_min: number
+    max_minutes: number
+    band_min: number
+    departure_hour: number
+    window_hours: number
+    /** Per-unit weights of jobs and other destinations reachable. */
+    jobs_weight: number
+    dest_weight: number
+  }
   /** The walk limit, half-life and weights that predict boardings best. */
   best_fit: {
     walk_min: number
     half_life_min: number
-    weights: { pop: number; jobs: number; dest: number }
+    weights: ScoreWeights
     r2: number
     cv_r2: number
   }
 }
 
+export interface ScoreWeights {
+  pop: number
+  jobs: number
+  dest: number
+  transit: number
+}
+
 /** How well the fit did (pipeline fit.py). */
 export interface FitSettings {
+  /** Cross-validated R² of the walk catchment alone, without transit connections. */
+  walk_only_cv_r2: number
   /** R² of log boardings per trip/h, in-sample and cross-validated. */
   r2: number
   cv_r2: number

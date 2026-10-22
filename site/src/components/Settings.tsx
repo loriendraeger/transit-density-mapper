@@ -151,6 +151,18 @@ export default function Settings(): JSX.Element {
         step={0.5}
         onInput={(v) => setWeights({ ...weights(), dest: v })}
       />
+      <Slider
+        label="Transit connections"
+        value={weights().transit}
+        min={0}
+        max={5}
+        step={0.5}
+        onInput={(v) => setWeights({ ...weights(), transit: v })}
+      />
+      <p class="hint">
+        Homes, jobs and other destinations count what's within walking distance; transit connections
+        count the jobs and destinations reachable by riding from the stop.
+      </p>
 
       <h2>Frequency</h2>
       <label class="field">

@@ -3,7 +3,14 @@ import { createMemo, createSignal, For, type JSX, Show } from 'solid-js'
 import { DAY_TYPES, type DayType, type Period, PERIODS, type Route } from '../lib/contract'
 import { periodFreq, type Scored } from '../lib/scoring'
 import { compact, fmt, headwayMin } from '../lib/units'
-import { data, period, walkMin, weights } from '../state/store'
+import {
+  data,
+  period,
+  setShowTransitReach,
+  showTransitReach,
+  walkMin,
+  weights,
+} from '../state/store'
 import HourlyChart from './HourlyChart'
 import { PERIOD_LABELS } from './Settings'
 
@@ -47,6 +54,8 @@ function Meter(props: { label: string; value: number; detail: string }): JSX.Ele
   )
 }
 
+const TRANSIT_MINUTES = [15, 30, 45, 60]
+
 const SPECIAL_LABELS: Record<string, string> = {
   school: 'school',
   campus: 'campus',
@@ -81,6 +90,15 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
     }
     const n = Math.floor(walkMin() / d.settings.band_min)
     return (stop().bands[id] ?? []).slice(0, n).reduce((a, b) => a + b, 0)
+  }
+  /** Reached by transit within t minutes (cumulative over the access bands). */
+  function byTransit(key: 'jobs' | 'homes', t: number): number {
+    const a = stop().access
+    const bandMin = data()?.settings.score.access.band_min ?? 2
+    if (!a) {
+      return 0
+    }
+    return a[key].slice(0, Math.floor(t / bandMin)).reduce((x, y) => x + y, 0)
   }
   const topCategories = createMemo(() =>
     Object.entries(props.s.raw.categories)
@@ -203,10 +221,57 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
             : 'None in reach'
         }
       />
+      <Meter
+        label="Transit connections"
+        value={props.s.norm.transit}
+        detail={`${compact(byTransit('jobs', 30))} jobs within 30 minutes by transit`}
+      />
       <p class="hint">
         Scores are 0–100 against the best stop at these settings; the overall score weights them{' '}
-        {weights().pop}:{weights().jobs}:{weights().dest}.
+        {weights().pop}:{weights().jobs}:{weights().dest}:{weights().transit}.
       </p>
+
+      <Show when={stop().access}>
+        <h2>By transit</h2>
+        <table class="mini">
+          <thead>
+            <tr>
+              <th />
+              <For each={TRANSIT_MINUTES}>{(t) => <th class="num">{t} min</th>}</For>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Jobs reachable</td>
+              <For each={TRANSIT_MINUTES}>
+                {(t) => <td class="num">{compact(byTransit('jobs', t))}</td>}
+              </For>
+            </tr>
+            <tr>
+              <td>Residents who can get here</td>
+              <For each={TRANSIT_MINUTES}>
+                {(t) => <td class="num">{compact(byTransit('homes', t))}</td>}
+              </For>
+            </tr>
+          </tbody>
+        </table>
+        <p class="hint">
+          Walking and riding, weekday {data()?.settings.score.access.departure_hour ?? 7}–
+          {(data()?.settings.score.access.departure_hour ?? 7) +
+            (data()?.settings.score.access.window_hours ?? 2)}{' '}
+          am, for a rider who plans around the schedule (the{' '}
+          {data()?.settings.score.access.percentile ?? 10}th-percentile trip over every departure
+          minute).{' '}
+          <button
+            type="button"
+            class="link"
+            onClick={() => setShowTransitReach(!showTransitReach())}
+          >
+            {showTransitReach() ? 'Hide' : 'Show'} the reach on the map
+          </button>
+          .
+        </p>
+      </Show>
 
       <h2>Departures by hour</h2>
       <div class="segmented" role="radiogroup" aria-label="Day">

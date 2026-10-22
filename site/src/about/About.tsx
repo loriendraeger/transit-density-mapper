@@ -130,6 +130,28 @@ export default function About(): JSX.Element {
         )}
       </Show>
 
+      <h2>Transit connections</h2>
+      <Show when={data()}>
+        {(d) => (
+          <p>
+            What a stop connects to by riding: travel times from every stop to every 150 m hex,
+            walking and riding with transfers, for every departure minute from{' '}
+            {d().settings.score.access.departure_hour} to{' '}
+            {d().settings.score.access.departure_hour + d().settings.score.access.window_hours} am
+            on a weekday (computed with R5, the routing engine behind Conveyal). A rider who shows
+            up at random waits about half the time between buses; one who plans around the schedule
+            barely waits, so the score uses the {d().settings.score.access.percentile}th-percentile
+            trip, which predicted ridership best. Jobs and destinations reached count less the
+            longer the trip (halving every {d().settings.score.access.half_life_min} minutes, none
+            past {d().settings.score.access.max_minutes}). Adding transit connections raised how
+            much of the variation in boardings per trip the model explains from{' '}
+            {Math.round(d().settings.fit.walk_only_cv_r2 * 100)} % to{' '}
+            {Math.round(d().settings.fit.cv_r2 * 100)} % (cross-validated). Each stop's details also
+            show residents who can get to it by transit, and the map can shade its transit reach.
+          </p>
+        )}
+      </Show>
+
       <h2>Overlap with neighbors</h2>
       <p>
         The score counts everyone within reach of a stop, so people near several stops count for

@@ -2,7 +2,7 @@
 // weights and the service period apply instantly. The walk limit and decay are fixed by
 // the pipeline (pipeline.toml [score]); the decay stays general for the blob shading.
 
-import { type Period, PERIODS, type Stop, type StopsFile } from './contract'
+import { type Period, PERIODS, type ScoreSettings, type Stop, type StopsFile } from './contract'
 
 export type DecayKind = 'none' | 'linear' | 'exponential' | 'logistic'
 
@@ -37,11 +37,13 @@ export function bandWeights(d: Decay, cutoff: number, nBands: number, bandMin: n
   )
 }
 
-/** Score weights: homes (residents), jobs, other destinations. */
+/** Score weights: homes (residents), jobs, other destinations (all within walking
+ * distance) and transit connections (reachable by riding). */
 export interface Weights {
   pop: number
   jobs: number
   dest: number
+  transit: number
 }
 
 export interface Settings {
@@ -64,13 +66,15 @@ export interface Components {
   dest: number
   /** Points per category (and SHOP_JOBS), before the destinations weight. */
   categories: Record<string, number>
+  /** Jobs and other destinations reachable by transit, discounted by travel time. */
+  transit: number
 }
 
 export interface Scored {
   stop: Stop
   raw: Components
   /** 0-100 against the best stop at the same settings. */
-  norm: { pop: number; jobs: number; dest: number }
+  norm: { pop: number; jobs: number; dest: number; transit: number }
   score: number
   /** Trips per hour in the chosen period (per direction, all routes). */
   freq: number
@@ -102,7 +106,23 @@ export function rawComponents(
   }
   categories[SHOP_JOBS] = sum('shopjobs') * shopJobsWeight
   const dest = Object.values(categories).reduce((a, b) => a + b, 0)
-  return { pop: sum('pop'), jobs: sum('jobs'), dest, categories }
+  return { pop: sum('pop'), jobs: sum('jobs'), dest, categories, transit: 0 }
+}
+
+/** Transit connections: each travel-time band's jobs and other destinations reached,
+ * weighted 0.5^(t / half-life) at the band's middle and mixed at the fitted weights. */
+export function transitRaw(stop: Stop, a: ScoreSettings['access'], shopJobsWeight: number): number {
+  const acc = stop.access
+  if (!acc) {
+    return 0
+  }
+  let s = 0
+  for (let b = 0; b < acc.jobs.length; b++) {
+    const g = Math.pow(0.5, ((b + 0.5) * a.band_min) / a.half_life_min)
+    const dest = (acc.osm[b] ?? 0) + shopJobsWeight * (acc.shopjobs[b] ?? 0)
+    s += g * (a.jobs_weight * (acc.jobs[b] ?? 0) + a.dest_weight * dest)
+  }
+  return s
 }
 
 /** Observed / expected weekday boardings, smoothed by k so stops with a handful of
@@ -135,15 +155,19 @@ export function scoreAll(data: StopsFile, s: Settings): Scored[] {
   const nBands = data.settings.max_walk_min / data.settings.band_min
   const bw = bandWeights(s.decay, s.walkMin, nBands, data.settings.band_min)
   const cats = data.measures.filter((m) => m.kind === 'poi').map((m) => m.id)
-  const raws = data.stops.map((stop) => rawComponents(stop, bw, cats, s.shopJobsWeight))
-  function max(k: 'pop' | 'jobs' | 'dest'): number {
+  const raws = data.stops.map((stop) => ({
+    ...rawComponents(stop, bw, cats, s.shopJobsWeight),
+    transit: transitRaw(stop, data.settings.score.access, s.shopJobsWeight),
+  }))
+  function max(k: 'pop' | 'jobs' | 'dest' | 'transit'): number {
     return Math.max(1e-9, ...raws.map((r) => r[k]))
   }
   const mPop = max('pop')
   const mJobs = max('jobs')
   const mDest = max('dest')
+  const mTransit = max('transit')
   const w = s.weights
-  const wSum = w.pop + w.jobs + w.dest
+  const wSum = w.pop + w.jobs + w.dest + w.transit
   // What each stop adds: its added totals over its full ones, each component normalized
   // by the largest full total (as the score is), combined with the current weights.
   const kShop = data.settings.score.shop_jobs_weight
@@ -175,8 +199,13 @@ export function scoreAll(data: StopsFile, s: Settings): Scored[] {
       pop: (100 * raw.pop) / mPop,
       jobs: (100 * raw.jobs) / mJobs,
       dest: (100 * raw.dest) / mDest,
+      transit: (100 * raw.transit) / mTransit,
     }
-    const score = wSum > 0 ? (w.pop * norm.pop + w.jobs * norm.jobs + w.dest * norm.dest) / wSum : 0
+    const score =
+      wSum > 0
+        ? (w.pop * norm.pop + w.jobs * norm.jobs + w.dest * norm.dest + w.transit * norm.transit) /
+          wSum
+        : 0
     const riders = ridersRatio(stop, data.settings.fit.ratio_k)
     return { stop, raw, norm, score, freq: stopFreq(stop, s), riders, adds: adds(stop), rank: 0 }
   })

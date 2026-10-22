@@ -6,10 +6,13 @@ import type { Feature, FeatureCollection, MultiPolygon, Position } from 'geojson
 
 import type { CatchmentIndex } from './contract'
 import { dataUrl } from './data'
+import { IndexedFile, Reader } from './indexed'
 
-const FILE = 'catchments.bin'
-const MAGIC = 'TDMC'
-const HEADER_BYTES = 10 // magic (4) + version (u16) + index length (u32)
+const file = new IndexedFile<CatchmentIndex>(
+  () => dataUrl('catchments.bin'),
+  'catchments.bin',
+  'TDMC',
+)
 
 export interface Catchment {
   id: string
@@ -17,79 +20,6 @@ export interface Catchment {
   edges: Map<number, number>
   /** Band i (1-based minutes = i + 1): cumulative area, as a GeoJSON MultiPolygon. */
   bands: MultiPolygon[]
-}
-
-/** If the server ignores Range (HTTP 200), keep the whole file and slice it instead. */
-let wholeFile: Promise<ArrayBuffer> | null = null
-
-async function fetchRange(start: number, length: number): Promise<ArrayBuffer> {
-  if (wholeFile) {
-    return (await wholeFile).slice(start, start + length)
-  }
-  const res = await fetch(dataUrl(FILE), {
-    headers: { Range: `bytes=${String(start)}-${String(start + length - 1)}` },
-  })
-  if (res.status === 206) {
-    return res.arrayBuffer()
-  }
-  if (!res.ok) {
-    throw new Error(`${FILE}: HTTP ${String(res.status)}`)
-  }
-  wholeFile = res.arrayBuffer()
-  return (await wholeFile).slice(start, start + length)
-}
-
-let index: Promise<CatchmentIndex> | null = null
-
-function loadIndex(): Promise<CatchmentIndex> {
-  if (!index) {
-    index = (async () => {
-      const head = new DataView(await fetchRange(0, HEADER_BYTES))
-      const magic = String.fromCharCode(...[0, 1, 2, 3].map((i) => head.getUint8(i)))
-      if (magic !== MAGIC) {
-        throw new Error(`${FILE}: not a catchments file`)
-      }
-      const length = head.getUint32(6, true)
-      const json = new TextDecoder().decode(await fetchRange(HEADER_BYTES, length))
-      return JSON.parse(json) as CatchmentIndex
-    })()
-    index.catch(() => {
-      index = null
-    })
-  }
-  return index
-}
-
-async function inflate(data: ArrayBuffer): Promise<Uint8Array> {
-  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))
-  return new Uint8Array(await new Response(stream).arrayBuffer())
-}
-
-/** Reads unsigned LEB128 varints (7 bits per byte, high bit = more follow). */
-class Reader {
-  pos = 0
-  constructor(private readonly bytes: Uint8Array) {}
-  uint(): number {
-    let n = 0
-    let shift = 0
-    for (;;) {
-      const b = this.bytes[this.pos++]
-      // Multiplication, not <<: values can pass 2^31.
-      n += (b & 0x7f) * 2 ** shift
-      if (b < 0x80) {
-        return n
-      }
-      shift += 7
-    }
-  }
-  /** Zigzag-decoded signed varint. */
-  int(): number {
-    const u = this.uint()
-    return u % 2 === 0 ? u / 2 : -(u + 1) / 2
-  }
-  byte(): number {
-    return this.bytes[this.pos++]
-  }
 }
 
 export function decode(id: string, bytes: Uint8Array, idx: CatchmentIndex): Catchment {
@@ -138,12 +68,12 @@ export function loadCatchment(stopId: string): Promise<Catchment> {
   let p = decoded.get(stopId)
   if (!p) {
     p = (async () => {
-      const idx = await loadIndex()
-      if (!(stopId in idx.stops)) {
+      const idx = await file.loadIndex()
+      const bytes = await file.record(stopId)
+      if (!bytes) {
         throw new Error(`no catchment for stop ${stopId}`)
       }
-      const [offset, length] = idx.stops[stopId]
-      return decode(stopId, await inflate(await fetchRange(offset, length)), idx)
+      return decode(stopId, bytes, idx)
     })()
     p.catch(() => decoded.delete(stopId))
     decoded.set(stopId, p)

@@ -29,6 +29,7 @@ import {
   untrack,
 } from 'solid-js'
 
+import { loadAccess } from '../lib/access'
 import { blobFeatures, type Catchment, loadCatchment } from '../lib/catchment'
 import {
   CROSSINGS_LAYER,
@@ -57,6 +58,7 @@ import {
   showPois,
   showRoutes,
   showSpiderweb,
+  showTransitReach,
   stopColor,
   walkMin,
 } from '../state/store'
@@ -92,6 +94,8 @@ interface StopProps {
   /** Riders vs. expected; 0 when the stop has no ridership figure (has_riders false). */
   ratio: number
   has_riders: boolean
+  /** Transit connections, 0-100 against the best stop. */
+  transit: number
   /** What the stop adds over its neighbors (0-1); has_adds false without data. */
   adds: number
   has_adds: boolean
@@ -202,6 +206,24 @@ export default function MapView(): JSX.Element {
         beforeLabels,
       )
     }
+    // The selected stop's transit isochrone: hexes shaded by travel time by transit
+    // (feature-state tmin, from access.bin), stronger the closer, under the walk blob.
+    const tmin: ExpressionSpecification = ['coalesce', ['feature-state', 'tmin'], 999]
+    m.addLayer(
+      {
+        id: 'transit-reach',
+        type: 'fill',
+        source: 'generators',
+        'source-layer': HEX_LAYER,
+        layout: { visibility: 'none' },
+        paint: {
+          'fill-color': CATCHMENT[mode],
+          'fill-opacity': ['step', tmin, 0.45, 15.5, 0.32, 30.5, 0.2, 45.5, 0.1, 60.5, 0],
+          'fill-antialias': false,
+        },
+      },
+      beforeLabels,
+    )
     m.addLayer(
       {
         id: 'blob',
@@ -502,6 +524,7 @@ export default function MapView(): JSX.Element {
           has_riders: s.stop.riders !== null,
           observed: s.stop.riders?.observed ?? 0,
           expected: s.stop.riders?.expected ?? 0,
+          transit: s.norm.transit,
           adds: s.adds ?? 0,
           has_adds: s.adds !== null,
         } satisfies StopProps,
@@ -539,11 +562,7 @@ export default function MapView(): JSX.Element {
       m.setPaintProperty(
         'stops',
         'circle-color',
-        stepExpr(
-          ['get', byFreq ? 'freq' : 'score'],
-          SCORE_RAMP[mode],
-          byFreq ? FREQ_BREAKS : SCORE_BREAKS,
-        ),
+        stepExpr(['get', by], SCORE_RAMP[mode], byFreq ? FREQ_BREAKS : SCORE_BREAKS),
       )
       m.setPaintProperty('stops', 'circle-stroke-color', ['case', selected, ink, surface])
     })
@@ -615,6 +634,32 @@ export default function MapView(): JSX.Element {
     createEffect(() => {
       m.setLayoutProperty('routes', 'visibility', showRoutes() ? 'visible' : 'none')
     })
+
+    // Transit isochrone of the selected stop (when the layer is on).
+    createEffect(
+      on([selectedId, showTransitReach], ([id, show]) => {
+        m.removeFeatureState({ source: 'generators', sourceLayer: HEX_LAYER })
+        m.setLayoutProperty('transit-reach', 'visibility', show && id ? 'visible' : 'none')
+        if (!show || id === null) {
+          return
+        }
+        loadAccess(id)
+          .then((times) => {
+            if (selectedId() !== id || !showTransitReach()) {
+              return
+            }
+            for (const [hex, t] of times) {
+              m.setFeatureState(
+                { source: 'generators', sourceLayer: HEX_LAYER, id: hex },
+                { tmin: t },
+              )
+            }
+          })
+          .catch((e: unknown) => {
+            console.error(e)
+          })
+      }),
+    )
 
     // Catchment of the selected stop: load, then paint the blob and the spiderweb.
     let catchment: Catchment | null = null

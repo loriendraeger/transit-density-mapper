@@ -29,7 +29,8 @@ import {
 //   stop=183                  selected stop (cluster id)
 //   walk=5                    walk-time limit, minutes (default: pipeline [score])
 //   hl=3                      half-life, minutes (default: pipeline [score])
-//   w=4,0.5,5                 weights: homes, jobs, other destinations (default: fitted)
+//   w=4,0.5,5,2               weights: homes, jobs, other destinations, transit connections
+//                             (default: fitted; a missing last one keeps its default)
 //   period=peak|offpeak|saturday|sunday   (default: weighted aggregate)
 //   density=pop,jobs,dest | none   hex layers shown (default: pop)
 
@@ -52,10 +53,11 @@ function applyParams(p: Params): void {
   setWalkMin(num(p.walk, 5, d.settings.max_walk_min) ?? s.walk_min)
   setHalfLife(num(p.hl, 1, 20) ?? s.half_life_min)
   const w = defaultWeights(d)
-  const [wp, wj, wd] = (p.w ?? '').split(',')
+  const [wp, wj, wd, wt] = (p.w ?? '').split(',')
   w.pop = num(wp, 0, 10) ?? w.pop
   w.jobs = num(wj, 0, 10) ?? w.jobs
   w.dest = num(wd, 0, 10) ?? w.dest
+  w.transit = num(wt, 0, 10) ?? w.transit
   setWeights(w)
 
   setPeriod(PERIODS.includes(p.period as Period) ? (p.period as Period) : 'aggregate')
@@ -95,7 +97,7 @@ export function currentParams(): Params {
     stop: selectedId() ?? undefined,
     walk: walkMin() === s.walk_min ? undefined : String(walkMin()),
     hl: halfLife() === s.half_life_min ? undefined : String(halfLife()),
-    w: weightsAreDefault() ? undefined : [w.pop, w.jobs, w.dest].map(String).join(','),
+    w: weightsAreDefault() ? undefined : [w.pop, w.jobs, w.dest, w.transit].map(String).join(','),
     period: period() === 'aggregate' ? undefined : period(),
     density: densityParam(),
   }

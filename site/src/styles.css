@@ -431,6 +431,9 @@ details.sub > summary {
   display: block;
   color: var(--ink-2);
 }
+table.mini th {
+  white-space: nowrap;
+}
 table.mini {
   width: 100%;
   border-collapse: collapse;

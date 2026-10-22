@@ -80,6 +80,12 @@ export default function StopTable(props: {
       sortFn: 'basic',
       cell: (c) => fmt(c.getValue(), 0),
     }),
+    helper.accessor((s) => s.norm.transit, {
+      id: 'transit',
+      header: 'Transit',
+      sortFn: 'basic',
+      cell: (c) => fmt(c.getValue(), 0),
+    }),
     helper.accessor('freq', {
       id: 'freq',
       header: 'Trips/h',

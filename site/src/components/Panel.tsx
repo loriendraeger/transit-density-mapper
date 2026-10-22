@@ -29,11 +29,13 @@ import {
   setShowPois,
   setShowRoutes,
   setShowSpiderweb,
+  setShowTransitReach,
   setStopColor,
   showCrossings,
   showPois,
   showRoutes,
   showSpiderweb,
+  showTransitReach,
   type StopColor,
   stopColor,
 } from '../state/store'
@@ -111,6 +113,7 @@ function Layers(): JSX.Element {
         >
           <option value="score">Catchment score</option>
           <option value="freq">Trips per hour</option>
+          <option value="transit">Transit connections</option>
           <option value="riders">Riders vs. expected</option>
           <option value="adds">What it adds over neighbors</option>
         </select>
@@ -129,11 +132,13 @@ function Layers(): JSX.Element {
           <Show when={stopColor() !== 'adds'}>
             <Legend
               ramp={SCORE_RAMP[MODE]}
-              breaks={stopColor() === 'score' ? SCORE_BREAKS : FREQ_BREAKS}
+              breaks={stopColor() === 'freq' ? FREQ_BREAKS : SCORE_BREAKS}
               unit={
                 stopColor() === 'score'
                   ? 'Score (0–100). Circle size: trips per hour.'
-                  : 'Trips per hour. Circle size: trips per hour.'
+                  : stopColor() === 'transit'
+                    ? 'Transit connections (0–100 against the best stop): jobs and destinations reachable by riding, nearer counting more. Circle size: trips per hour.'
+                    : 'Trips per hour. Circle size: trips per hour.'
               }
             />
           </Show>
@@ -210,6 +215,11 @@ function Layers(): JSX.Element {
       </label>
       <Check label="Route lines" checked={showRoutes()} onChange={setShowRoutes} />
       <Check label="Walking-path spiderweb" checked={showSpiderweb()} onChange={setShowSpiderweb} />
+      <Check
+        label="Transit reach of the selected stop (15 / 30 / 45 / 60 min)"
+        checked={showTransitReach()}
+        onChange={setShowTransitReach}
+      />
       <Check label="Destination places (zoom in)" checked={showPois()} onChange={setShowPois} />
       <Check
         label="Arterial crossings the walk model allows"
