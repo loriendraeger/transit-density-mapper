@@ -8,14 +8,18 @@ import {
   defaultWeights,
   densities,
   flyTo,
+  halfLife,
   period,
   selectedId,
   setDensities,
+  setHalfLife,
   setPeriod,
   setSelectedId,
   setView,
+  setWalkMin,
   setWeights,
   type View,
+  walkMin,
   weights,
   weightsAreDefault,
 } from './store'
@@ -23,6 +27,8 @@ import {
 // The URL mirrors the settings both ways, so a view can be shared. Hash routes (GitHub
 // Pages has no SPA fallback): #/map, #/stops, #/about. Search params (defaults omitted):
 //   stop=183                  selected stop (cluster id)
+//   walk=5                    walk-time limit, minutes (default: pipeline [score])
+//   hl=3                      half-life, minutes (default: pipeline [score])
 //   w=4,0.5,5                 weights: homes, jobs, other destinations (default: fitted)
 //   period=peak|offpeak|saturday|sunday   (default: weighted aggregate)
 //   density=pop,jobs,dest | none   hex layers shown (default: pop)
@@ -42,6 +48,9 @@ function applyParams(p: Params): void {
   if (!d) {
     return
   }
+  const s = d.settings.score
+  setWalkMin(num(p.walk, 5, d.settings.max_walk_min) ?? s.walk_min)
+  setHalfLife(num(p.hl, 1, 20) ?? s.half_life_min)
   const w = defaultWeights(d)
   const [wp, wj, wd] = (p.w ?? '').split(',')
   w.pop = num(wp, 0, 10) ?? w.pop
@@ -81,8 +90,11 @@ export function currentParams(): Params {
     return {}
   }
   const w = weights()
+  const s = d.settings.score
   return {
     stop: selectedId() ?? undefined,
+    walk: walkMin() === s.walk_min ? undefined : String(walkMin()),
+    hl: halfLife() === s.half_life_min ? undefined : String(halfLife()),
     w: weightsAreDefault() ? undefined : [w.pop, w.jobs, w.dest].map(String).join(','),
     period: period() === 'aggregate' ? undefined : period(),
     density: densityParam(),

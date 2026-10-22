@@ -2,14 +2,18 @@ import { For, type JSX, Show } from 'solid-js'
 
 import { type Period, PERIODS } from '../lib/contract'
 import {
+  activePreset,
+  applyPreset,
   data,
-  defaultWeights,
+  halfLife,
   period,
   periodWeights,
+  setHalfLife,
   setPeriod,
+  setWalkMin,
   setWeights,
+  walkMin,
   weights,
-  weightsAreDefault,
 } from '../state/store'
 
 export const PERIOD_LABELS: Record<Period | 'aggregate', string> = {
@@ -33,13 +37,6 @@ function clock(h: number): string {
   const suffix = hh < 12 ? 'am' : 'pm'
   const twelve = hh % 12 === 0 ? 12 : hh % 12
   return `${String(twelve)}${suffix}`
-}
-
-function resetWeights(): void {
-  const d = data()
-  if (d) {
-    setWeights(defaultWeights(d))
-  }
 }
 
 function Slider(props: {
@@ -74,6 +71,61 @@ function Slider(props: {
 export default function Settings(): JSX.Element {
   return (
     <section class="settings">
+      <h2>Walk</h2>
+      <Show when={data()}>
+        {(d) => (
+          <>
+            <div class="segmented presets" role="radiogroup" aria-label="Walk and weight preset">
+              <button
+                role="radio"
+                aria-checked={activePreset() === 'default'}
+                onClick={() => {
+                  applyPreset('default')
+                }}
+              >
+                Default assumption
+              </button>
+              <button
+                role="radio"
+                aria-checked={activePreset() === 'best'}
+                onClick={() => {
+                  applyPreset('best')
+                }}
+              >
+                Best fit
+              </button>
+            </div>
+            <p class="hint">
+              Default assumption: the usual {d().settings.score.walk_min}-minute planning walk,
+              weight halving every {d().settings.score.half_life_min} minutes. Best fit: the walk
+              that predicts boardings best ({d().settings.score.best_fit.walk_min} minutes, halving
+              every {d().settings.score.best_fit.half_life_min}); it explains{' '}
+              {Math.round(d().settings.score.best_fit.cv_r2 * 100)} % of the variation in boardings
+              per trip, against {Math.round(d().settings.fit.cv_r2 * 100)} %. Each sets the weights
+              fit for it.
+            </p>
+          </>
+        )}
+      </Show>
+      <Slider
+        label="Walk time limit"
+        value={walkMin()}
+        min={5}
+        max={data()?.settings.max_walk_min ?? 20}
+        step={1}
+        onInput={setWalkMin}
+        format={(v) => `${String(v)} min`}
+      />
+      <Slider
+        label="Half-life"
+        value={halfLife()}
+        min={1}
+        max={20}
+        step={0.5}
+        onInput={setHalfLife}
+        format={(v) => `${String(v)} min`}
+      />
+
       <h2>Score weights</h2>
       <Slider
         label="Homes"
@@ -99,27 +151,6 @@ export default function Settings(): JSX.Element {
         step={0.5}
         onInput={(v) => setWeights({ ...weights(), dest: v })}
       />
-      <Show when={data()}>
-        {(d) => (
-          <p class="hint">
-            <Show
-              when={weightsAreDefault()}
-              fallback={
-                <>
-                  <button type="button" class="link" onClick={resetWeights}>
-                    Reset to the fitted defaults
-                  </button>
-                  .
-                </>
-              }
-            >
-              Defaults fit to weekday boardings (see About).
-            </Show>{' '}
-            Everything within a {d().settings.score.walk_min}-minute walk counts, halving every{' '}
-            {d().settings.score.half_life_min} minutes.
-          </p>
-        )}
-      </Show>
 
       <h2>Frequency</h2>
       <label class="field">

@@ -232,6 +232,18 @@ def stops_json() -> None:
                 "half_life_min": fit["half_life"],
                 "weights": {"pop": fit["w_pop"], "jobs": fit["w_jobs"], "dest": fit["w_dest"]},
                 "shop_jobs_weight": round(fit["shop_jobs_weight"], 5),
+                # The settings that predict boardings best (fit.py grid search).
+                "best_fit": {
+                    "walk_min": int(fit["best_walk_min"]),
+                    "half_life_min": fit["best_half_life"],
+                    "weights": {
+                        "pop": fit["best_w_pop"],
+                        "jobs": fit["best_w_jobs"],
+                        "dest": fit["best_w_dest"],
+                    },
+                    "r2": round(fit["best_r2"], 3),
+                    "cv_r2": round(fit["best_cv_r2"], 3),
+                },
             },
             # Share of destination trips by purpose group (NHTS), which sets each
             # group's total destination points.

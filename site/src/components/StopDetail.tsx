@@ -152,7 +152,7 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
               </p>
             </Show>
             <p class="hint">
-              Expected = fitted weights and decay (not the sliders) × weekday trips/hour. 2024
+              Expected = the default assumption's fit (not the sliders) × weekday trips/hour. 2024
               ridership predates the BRT (Sept 2024), so stops whose service changed since may be
               off.
             </p>

@@ -117,13 +117,14 @@ export default function About(): JSX.Element {
       <Show when={data()}>
         {(d) => (
           <p>
-            Each of homes, jobs and other destinations is summed over everything within a{' '}
-            {d().settings.score.walk_min}-minute walk, each counted less the farther it is (its
-            weight halves every {d().settings.score.half_life_min} minutes), then scaled 0–100
-            against the best stop. The score is their weighted average; the default weights (homes{' '}
-            {d().settings.score.weights.pop}, jobs {d().settings.score.weights.jobs}, other
-            destinations {d().settings.score.weights.dest}) are fit to ridership, below. People and
-            places within reach of several stops count for each of them.
+            Each of homes, jobs and other destinations is summed over everything within the walk
+            limit (by default {d().settings.score.walk_min} minutes), each counted less the farther
+            it is (its weight halves every half-life, by default {d().settings.score.half_life_min}{' '}
+            minutes), then scaled 0–100 against the best stop. The score is their weighted average;
+            the default weights (homes {d().settings.score.weights.pop}, jobs{' '}
+            {d().settings.score.weights.jobs}, other destinations {d().settings.score.weights.dest})
+            are fit to ridership, below. People and places within reach of several stops count for
+            each of them.
           </p>
         )}
       </Show>
@@ -147,9 +148,9 @@ export default function About(): JSX.Element {
               trip across {f().n_fit} stops (cross-validated): the catchment matters, but most of
               what makes a stop busy is elsewhere, above all where its buses go. Schools, campus,
               park-and-rides, the airport and transfer points (5+ routes) draw riders a walkshed
-              can't see, so they were left out of the fit. The data favored even shorter walks (a
-              1–2 minute half-life); 4 minutes is a compromise with the usual 5-minute planning
-              walk.
+              can't see, so they were left out of the fit. The default assumption (a 10-minute walk,
+              halving every 4 minutes) follows planning convention; the data favor shorter walks,
+              which the <em>Best fit</em> button applies with weights refit for it.
             </p>
             <p>
               <strong>Riders vs. expected</strong> (a stop color option) divides each stop's

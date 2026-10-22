@@ -100,9 +100,10 @@ hex_size_m = 150
 purpose_trips = "urban"
 
 [score]
-# Fixed score settings (owner 2026-10-21: no walk/decay sliders). 10 min is the usual
-# planning walk to a bus stop; a 4 min half-life leaves about a quarter weight at the
-# limit. The ridership fit preferred shorter half-lives (2 min) by a small margin.
+# Default score settings (the site's "default assumption"; users can change them).
+# 10 min is the usual planning walk to a bus stop; a 4 min half-life leaves about a
+# quarter weight at the limit. The ridership fit prefers shorter walks: see the site's
+# "best fit" preset ([ridership] search ranges).
 walk_min = 10
 half_life_min = 4
 
@@ -144,6 +145,7 @@ special_transfer_min_routes = 5 # transfer point: this many routes or more
 # Stops below this weekday frequency (trips/h per direction) are left out of the fit:
 # boardings per trip get noisy when there are only a few trips.
 fit_min_freq = 0.5
-# Half-lives (minutes) the report compares at the fixed walk limit (for information;
-# the score uses [score] half_life_min).
+# The "best fit" preset searches these walk limits and half-lives (whole minutes) for
+# the settings that predict boardings best (the default stays [score]).
+fit_walk_min_range = [5, 20]
 fit_half_life_range = [1, 10]

@@ -50,6 +50,7 @@ import {
   densityOpacity,
   flyRequest,
   scored,
+  scoredById,
   selectedId,
   setSelectedId,
   showCrossings,
@@ -436,6 +437,32 @@ export default function MapView(): JSX.Element {
     const ink2 = INK_2[mode]
     const surface = SURFACE[mode]
 
+    // The drawer opening or closing resizes the map; MapLibre keeps the center, which
+    // shifts everything sideways. Keep the top-left corner in place instead, then pan
+    // only as far as needed if the selected stop ended up hidden (owner 2026-10-21).
+    let lastSize = [m.getContainer().clientWidth, m.getContainer().clientHeight]
+    m.on('resize', () => {
+      const w = m.getContainer().clientWidth
+      const h = m.getContainer().clientHeight
+      const [dw, dh] = [lastSize[0] - w, lastSize[1] - h]
+      lastSize = [w, h]
+      if (dw !== 0 || dh !== 0) {
+        m.panBy([-dw / 2, -dh / 2], { duration: 0 })
+      }
+      const id = untrack(selectedId)
+      const s = id === null ? undefined : untrack(scoredById).get(id)
+      if (!s) {
+        return
+      }
+      const pt = m.project([s.stop.lon, s.stop.lat])
+      const margin = 60
+      const dx = pt.x < margin ? pt.x - margin : pt.x > w - margin ? pt.x - (w - margin) : 0
+      const dy = pt.y < margin ? pt.y - margin : pt.y > h - margin ? pt.y - (h - margin) : 0
+      if (dx !== 0 || dy !== 0) {
+        m.panBy([dx, dy], { duration: 300 })
+      }
+    })
+
     // Fit the stops once they arrive (unless a stop is selected: the fly handles that).
     createEffect(
       on(data, (d) => {
@@ -550,8 +577,8 @@ export default function MapView(): JSX.Element {
     createEffect(() => {
       const gens = densities()
       const active = ['', 'density', 'density-half', 'density-third'].at(gens.length) ?? ''
-      // Fade the density under a catchment so the blob reads.
-      const op = densityOpacity() * (selectedId() ? 0.3 : 1)
+      // Same opacity with or without a selected stop (owner 2026-10-21).
+      const op = densityOpacity()
       for (const id of ['density', 'density-half', 'density-third']) {
         m.setLayoutProperty(id, 'visibility', id === active ? 'visible' : 'none')
         m.setPaintProperty(id, 'fill-opacity', op)

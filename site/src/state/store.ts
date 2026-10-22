@@ -13,17 +13,68 @@ export const [data, setData] = createSignal<StopsFile | null>(null)
 export const [loadError, setLoadError] = createSignal<string | null>(null)
 
 // --- scoring settings ---------------------------------------------------------------
-// Fixed by the pipeline (pipeline.toml [score]; owner 2026-10-21): walk limit, decay
-// and period weights. The user picks the weights (in the URL; see url.ts) and period.
+// The user sets the walk limit, half-life and weights (in the URL; see url.ts), directly
+// or from two presets: the default assumption (pipeline.toml [score], weights fit to
+// ridership there) and the best fit (the walk/half-life that predict ridership best).
+// Period weights are fixed.
 
-/** Walk-time limit, minutes (fixed). */
-export function walkMin(): number {
-  return data()?.settings.score.walk_min ?? 10
+export const [walkMin, setWalkMin] = createSignal(10)
+export const [halfLife, setHalfLife] = createSignal(4)
+
+/** Distance decay: exponential with the chosen half-life. */
+export function decay(): Decay {
+  return { kind: 'exponential', param: halfLife() }
 }
 
-/** Distance decay (fixed): exponential with the configured half-life. */
-export function decay(): Decay {
-  return { kind: 'exponential', param: data()?.settings.score.half_life_min ?? 4 }
+export type PresetName = 'default' | 'best'
+export interface Preset {
+  walkMin: number
+  halfLife: number
+  weights: Weights
+}
+
+export function preset(d: StopsFile, name: PresetName): Preset {
+  const s = d.settings.score
+  return name === 'default'
+    ? { walkMin: s.walk_min, halfLife: s.half_life_min, weights: { ...s.weights } }
+    : {
+        walkMin: s.best_fit.walk_min,
+        halfLife: s.best_fit.half_life_min,
+        weights: { ...s.best_fit.weights },
+      }
+}
+
+export function applyPreset(name: PresetName): void {
+  const d = data()
+  if (!d) {
+    return
+  }
+  const p = preset(d, name)
+  setWalkMin(p.walkMin)
+  setHalfLife(p.halfLife)
+  setWeights(p.weights)
+}
+
+/** The preset the current walk limit, half-life and weights match, if any. */
+export function activePreset(): PresetName | null {
+  const d = data()
+  if (!d) {
+    return null
+  }
+  const w = weights()
+  for (const name of ['default', 'best'] as const) {
+    const p = preset(d, name)
+    if (
+      p.walkMin === walkMin() &&
+      p.halfLife === halfLife() &&
+      p.weights.pop === w.pop &&
+      p.weights.jobs === w.jobs &&
+      p.weights.dest === w.dest
+    ) {
+      return name
+    }
+  }
+  return null
 }
 
 /** Weighted-week period weights (fixed: hours per week each period stands for). */
@@ -58,7 +109,10 @@ export function weightsAreDefault(): boolean {
 
 /** Called once stops.json arrives, before the URL is applied. */
 export function initFromData(d: StopsFile): void {
-  setWeights(defaultWeights(d))
+  const p = preset(d, 'default')
+  setWalkMin(p.walkMin)
+  setHalfLife(p.halfLife)
+  setWeights(p.weights)
   setData(d)
 }
 

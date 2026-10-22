@@ -115,6 +115,7 @@ def load() -> dict:
         "unmatched_top": unmatched_top,
         "fit_min_freq": p["ridership"]["fit_min_freq"],
         "hl_range": p["ridership"]["fit_half_life_range"],
+        "walk_range": p["ridership"]["fit_walk_min_range"],
         "walk_min": p["score"]["walk_min"],
         "half_life": p["score"]["half_life_min"],
     }
@@ -189,6 +190,32 @@ def fit_model(d: dict) -> dict:
     profile = [
         {"half_life": h, "r2": at(h)["r2"]} for h in range(d["hl_range"][0], d["hl_range"][1] + 1)
     ]
+
+    # Best fit: the walk limit and half-life that predict boardings best, with other
+    # destinations defined as above (osm + k * shop jobs, k fixed), weights refit.
+    def three(walk_min: float, half_life: float) -> np.ndarray:
+        x = components(d, walk_min, half_life)
+        return np.column_stack([x[:, 0], x[:, 1], x[:, 2] + k_shop * x[:, 3]])
+
+    grid = []
+    for walk_min in range(d["walk_range"][0], d["walk_range"][1] + 1):
+        for hl in range(d["hl_range"][0], d["hl_range"][1] + 1):
+            x3 = three(walk_min, hl)
+            sc = np.maximum(x3[in_fit].max(axis=0), 1e-9)
+            p3, r2 = fit_log(x3[in_fit] / sc, y)
+            grid.append(
+                {"walk_min": walk_min, "half_life": hl, "r2": r2, "p": p3, "sc": sc, "x": x3}
+            )
+    best = max(grid, key=lambda g: g["r2"])
+    best_w = best["p"][1:] / best["sc"] * best["x"].max(axis=0)
+    best_w = np.round(best_w / best_w.max() * SLIDER_MAX / SLIDER_STEP) * SLIDER_STEP
+    best_fit = {
+        "walk_min": best["walk_min"],
+        "half_life": best["half_life"],
+        "weights": best_w,
+        "r2": best["r2"],
+        "cv_r2": cv_r2(best["x"][in_fit] / best["sc"], y),
+    }
     return {
         "in_fit": in_fit,
         "r2": m["r2"],
@@ -199,6 +226,8 @@ def fit_model(d: dict) -> dict:
         "dest": dest,
         "x": x_all,
         "profile": profile,
+        "grid": grid,
+        "best_fit": best_fit,
     }
 
 
@@ -214,6 +243,13 @@ def write_db(d: dict, m: dict) -> None:
         "cv_r2": m["cv_r2"],
         "n_fit": int(m["in_fit"].sum()),
         "ratio_k": RATIO_K,
+        "best_walk_min": m["best_fit"]["walk_min"],
+        "best_half_life": m["best_fit"]["half_life"],
+        "best_w_pop": m["best_fit"]["weights"][0],
+        "best_w_jobs": m["best_fit"]["weights"][1],
+        "best_w_dest": m["best_fit"]["weights"][2],
+        "best_r2": m["best_fit"]["r2"],
+        "best_cv_r2": m["best_fit"]["cv_r2"],
     }
     with psycopg.connect("") as conn:
         conn.execute("DROP TABLE IF EXISTS valid.fit_params")
@@ -279,6 +315,26 @@ def report(d: dict, m: dict) -> str:
         f"destinations {sw[2]:g}.",
         f"- Other destinations = OSM destination points + {m['k_shop']:.3f} × retail and "
         "health-care jobs.",
+        "",
+        f"- Best fit (site preset; walk {d['walk_range'][0]}–{d['walk_range'][1]} min, "
+        f"half-life {d['hl_range'][0]}–{d['hl_range'][1]} min searched): walk limit "
+        f"{m['best_fit']['walk_min']} min, half-life {m['best_fit']['half_life']} min, "
+        f"weights {', '.join(f'{v:g}' for v in m['best_fit']['weights'])}; R² "
+        f"{m['best_fit']['r2']:.3f} (cross-validated {m['best_fit']['cv_r2']:.3f}).",
+        "",
+        "Best R² per walk limit (half-life searched):",
+        "",
+        "| Walk limit (min) | Half-life (min) | R² |",
+        "|---|---|---|",
+        *(
+            f"| {w} | {g['half_life']} | {g['r2']:.3f} |"
+            for w, g in sorted(
+                {
+                    w: max((g for g in m["grid"] if g["walk_min"] == w), key=lambda g: g["r2"])
+                    for w in {g["walk_min"] for g in m["grid"]}
+                }.items()
+            )
+        ),
         "",
         f"R² by half-life at the {d['walk_min']} min limit (for comparison):",
         "",

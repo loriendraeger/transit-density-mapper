@@ -53,6 +53,14 @@ export interface ScoreSettings {
   weights: { pop: number; jobs: number; dest: number }
   /** Other destinations = POI points + this x retail and health-care jobs. */
   shop_jobs_weight: number
+  /** The walk limit, half-life and weights that predict boardings best. */
+  best_fit: {
+    walk_min: number
+    half_life_min: number
+    weights: { pop: number; jobs: number; dest: number }
+    r2: number
+    cv_r2: number
+  }
 }
 
 /** How well the fit did (pipeline fit.py). */

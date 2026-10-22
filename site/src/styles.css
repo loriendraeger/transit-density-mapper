@@ -232,6 +232,12 @@ button.primary {
 .back {
   margin-bottom: 8px;
 }
+.segmented.presets {
+  display: flex;
+}
+.segmented.presets button {
+  flex: 1;
+}
 .segmented {
   display: inline-flex;
   border: 1px solid var(--hairline);

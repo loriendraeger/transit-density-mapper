@@ -19,9 +19,10 @@ Two views on one static site:
    distance. Each stop has a detail view.
 
 Users can tinker with few things (owner 2026-10-21: "very reasonable defaults, fewer
-sliders"): the three score **weights** (defaults fit to ridership), the **service
-period**, the stop coloring and how map layers look. The walk limit (10 min), decay
-(4 min half-life), destination categories and period weights are fixed in config.
+sliders"): the **walk limit** and **half-life** (exponential decay only), the three score
+**weights**, two presets that set all five (**Default assumption** and **Best fit**), the
+**service period**, the stop coloring and how map layers look. Destination categories
+and period weights are fixed in config.
 Everything adjustable is computed in the browser from precomputed data.
 
 Two halves, as in `../public-private-shore`:
@@ -75,6 +76,8 @@ A **for-fun learning project**. The owner is interested in GIS and transit.
 | Score (2026-10-19; revised 2026-10-21) | Three components, **Homes** (residents), **Jobs**, **Other destinations**, each summed with the **decay weight** of its walk time, **normalized 0–100 against the best stop**, then weight-averaged. **Fixed**: 10 min walk, exponential decay with a **4 min half-life** (owner's pick: the fit preferred 1–2 min by a small margin; 4 min keeps the 10-minute walk meaningful). Default weights fit to ridership (homes 5, jobs 0.5, other destinations 4). |
 | Blob rendering (2026-10-19) | Cumulative 1-minute bands stacked with per-band opacities solved so the **blob's opacity at time t follows the score's decay curve**. |
 | Licenses (2026-10-19) | **Same split as the sibling**: code GPL-3.0-or-later (`LICENSE`), docs CC BY-SA 4.0 (`LICENSE-DOCS`), outputs ODbL 1.0 with upstream attributions (`LICENSE-DATA`; required by OSM). |
+| Presets (2026-10-21) | Walk-limit and half-life sliders came back with two buttons: **Default assumption** (`[score]`: 10 min, 4 min half-life, weights fit there; the app's defaults) and **Best fit** (walk 5–20 × half-life 1–10 searched; weights refit; other destinations keep the default fit's points per shop job). Best fit 2026-10-21: 5 min walk, 3 min half-life, homes 3.5, jobs 0, other destinations 5; CV R² 0.188 vs. 0.152. |
+| Map behavior (2026-10-21) | Hex opacity doesn't change when a stop is selected. Opening/closing the drawer keeps the map's top-left corner fixed (a `resize` handler pans back MapLibre's keep-the-center resize) and pans only if the selected stop would be hidden. |
 | Calibration (2026-10-20; revised 2026-10-21) | Fit the score's weights to **observed boardings per trip** (MPO, Feb 2024) at the fixed walk/decay; the fit **is the default** (the preset button went away with the walk/decay sliders). Special stops (schools, campus, park-and-rides, airport, transfer points) found from **OSM + stop names**, left out of the fit. Leftovers shown as a **"Riders vs. expected" stop color** (owner's picks among options). |
 | Site data in git (2026-10-19) | `site/public/data/` is **gitignored** until the owner is happy with it. |
 | Catchment file (2026-10-19) | All stops' blobs and spiderwebs in **one file**, `catchments.bin` (owner preference over one file per stop): a JSON index of byte ranges, then one raw-deflate record per stop (varint delta-encoded edge ids and coordinates, walk times as bytes in 10 s steps). The site fetches the index once and each selected stop's bytes with an HTTP range request, like PMTiles. 7.9 MB total (was 41 MB as JSON); ~9 kB per stop. Tried and rejected: storing the blob as non-overlapping rings (bigger: every boundary is stored twice). |
@@ -290,10 +293,11 @@ exports in EPSG:4326.
 - **Riders vs. expected**: a "Stops colored by" option (diverging red ↔ gray ↔ blue,
   hollow = no data), a drawer section with observed/expected and special-stop reasons,
   a table column.
-- **Settings**: three weight sliders (Homes, Jobs, Other destinations) with a "Reset to
-  the fitted defaults" link, and the service period. Walk limit, decay and period
-  weights come from `stops.json` settings (read-only `walkMin()`, `decay()`,
-  `periodWeights()` in `state/store.ts`).
+- **Settings**: Walk (Default assumption / Best fit buttons, walk limit 5–20, half-life
+  1–20), three weight sliders (Homes, Jobs, Other destinations), the service period.
+  Presets come from `stops.json` `settings.score` (`preset()`, `applyPreset()`,
+  `activePreset()` in `state/store.ts`); period weights are read-only. Riders vs.
+  expected always uses the default assumption's fit.
 - **About tab**: methodology and sources.
 - Settings live in the URL (`state/url.ts`); `?stop=` accepts a merged-stop id or any
   platform's GTFS stop id.
