@@ -5,25 +5,36 @@ Guidance for AI coding agents (and humans) working in this repo.
 ## Project
 
 **Goal: show each Madison Metro stop's ridership potential and transit density**
-(owner's focus, 2026-10-21): the trip generators within a short walk (homes, jobs, other
-destinations), how often buses serve the stop, and how its observed boardings compare
-with what its catchment and service predict.
+(owner's focus, 2026-10-21):
+
+- **Ridership potential**: the trips a stop could serve: homes, jobs and other
+  destinations within a short walk, plus what riding from it connects to (transit
+  connections).
+- **Transit density**: how much of that is close to the stop, and how often buses serve it.
+- **Irrespective of mode** (owner's principle): measure where people live and where they
+  go, not who rides today. A dense place where everyone drives is an opportunity, not
+  low potential, so no car-ownership or "likely rider" adjustments.
+- **Observed boardings are a check, not the target**: they calibrate the default weights
+  and show which stops over- or under-perform the model ("riders vs. expected"), which
+  the owner finds the most interesting output.
+- Trips are mostly round trips, so origins and destinations aren't scored separately.
 
 Two views on one static site:
 
-1. **Map.** Trip generators (population or job density, destinations), transit stops,
-   and the selected stop's **walk catchment**: a spiderweb of walkable paths and a blob
-   that fades as walking time grows.
-2. **Stop analysis tab.** One row per (merged) stop: frequency through the day for each
-   service period, and a **catchment score** for the trip generators within walking
-   distance. Each stop has a detail view.
+1. **Map.** Trip generators (homes, jobs, other destinations as density hexes), transit
+   stops (colored by score, frequency, transit connections, riders vs. expected or what
+   they add over neighbors), and the selected stop's **walk catchment** (spiderweb and
+   fading blob) and optional **transit reach** (isochrone, replacing the hexes).
+2. **Stop analysis tab.** One row per (merged) stop: score and its components,
+   frequency, riders vs. expected, overlap; each stop has a detail view.
 
 Users can tinker with few things (owner 2026-10-21: "very reasonable defaults, fewer
-sliders"): the **walk limit** and **half-life** (exponential decay only), the three score
-**weights**, two presets that set all five (**Default assumption** and **Best fit**), the
-**service period**, the stop coloring and how map layers look. Destination categories
-and period weights are fixed in config.
-Everything adjustable is computed in the browser from precomputed data.
+sliders"): the **walk limit** and **half-life**, the four score **weights** (homes, jobs,
+other destinations, transit connections), two presets that set all six (**Default
+assumption** and **Best fit**, both fit to ridership), the **service period**, the stop
+coloring and the map layers. Destination categories, period weights and the transit
+settings are fixed in config. Everything adjustable is computed in the browser from
+precomputed data.
 
 Two halves, as in `../public-private-shore`:
 
@@ -31,13 +42,14 @@ Two halves, as in `../public-private-shore`:
    per-stop data come out.
 2. **Static site** (GitHub Pages, client-only): renders the pipeline's outputs.
 
-**Status (end of 2026-10-19):** milestones 1–6 done. Built in one long session: an
-autonomous first pass, then a day of owner review and changes (layout, hexes, route
-lines, one-way display, catchment file format, pipeline speed; all recorded below). The
-owner has looked at the site and tuned some weights but hasn't signed off on the data.
-The full pipeline runs from `make` (~2.5 min from scratch after downloads; ~25 s after a
-destination-weight change; ~1 s when nothing changed), and the site runs locally
-(`make site`). Next steps: [Open questions](#open-questions). `site/public/data/` is **gitignored until the owner is happy with it**,
+**Status (2026-10-22):** milestones 1–6 done. After the first build (2026-10-19), the
+owner worked through `docs/assumptions-critique.md` (2026-10-20 to 22): per-direction
+frequency, ridership calibration, destination totals from trip purposes, current
+population, fewer controls with fitted defaults, overlap with neighbors, and transit
+connections with R5 (all recorded below). The owner hasn't signed off on the data yet.
+The full pipeline runs from `make` (a few minutes from scratch after downloads, plus
+~20 min for the first R5 run; ~1 min after a destination-weight change; seconds when
+nothing changed), and the site runs locally (`make site`). Next steps: [Open questions](#open-questions). `site/public/data/` is **gitignored until the owner is happy with it**,
 so the deploy workflow exists but would publish a site with no data. See
 [Milestones](#milestones) and [Open questions](#open-questions).
 
@@ -421,6 +433,16 @@ Things learned the hard way; check these before debugging the same problem again
 - **Owner's working style**: workshop design choices with options and a recommendation
   (mockups help); say plainly when an earlier claim was wrong; verify refactors produce
   identical output; commit on `main`, never push.
+- **Analysis changes go through the ridership scoreboard**: compare cross-validated R²
+  of boardings per trip (`fit.py`; repeat over ~20 random splits for small differences)
+  before and after, and keep a change only if it doesn't make the fit worse. The owner
+  has reverted changes that failed it (jobs spread over buildings, split catchments) and
+  adopted ones that passed (trip-purpose totals, shop jobs, current population, transit
+  connections). Record both outcomes in Decisions.
+- **Controls**: the owner prefers few, with sound defaults; propose new settings as fixed
+  config values unless they're worth a slider.
+- **Colors**: the owner sometimes tunes colors directly in `map/colors.ts`; mirror a
+  light-mode change in dark mode and check both with the dataviz validator.
 
 ## Milestones
 
@@ -453,10 +475,21 @@ Things learned the hard way; check these before debugging the same problem again
 - **CPU settings (offered, not done)**: move the blob worker count (`export.catchments`,
   default = CPUs Docker allots) and `reach.py` `WORKERS = 8` into a `pipeline.toml`
   section.
+- **Post-BRT ridership**: the MPO's April 2025 APC estimates exist only as a PDF map;
+  asking for the table would let the fit (and the BRT stations' ×4 over-performance) be
+  rechecked on today's network. A cheap rerun for the reverted experiments too.
+- **Transit connections are all jobs**: the fit gives destinations reachable zero weight
+  (collinear with jobs). The owner specified jobs + other destinations; a fixed mix is
+  one config setting if wanted.
+- **Within-group destination weights** are still hand-set: in the recreation group
+  (8 % of trips), parks take most of the budget, so bars, theatres and museums end up
+  small.
+- **Airport jobs** sit at LODES block points ~1 km from the terminal (big-block lumping).
+- **Edge-of-network stops** score low on transit connections partly because there's
+  little to reach, not only because of poor service.
 - **Stop colors vs. the yellow destinations ramp**: close hues; if confusing, move stop
   scores to another hue.
 - Weekday peak windows and period weights are first guesses; check them against Metro's
   actual service span.
 - Tertiary roads are not barriers. Some (e.g. busy collectors) might deserve it;
   `road_classes.csv` can flip them.
-- Destination weights are first guesses.
