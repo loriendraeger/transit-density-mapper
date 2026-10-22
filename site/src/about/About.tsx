@@ -82,11 +82,12 @@ export default function About(): JSX.Element {
       <h2>What's in reach</h2>
       <ul>
         <li>
-          <strong>Homes</strong>: residents. 2020 Census block counts, spread over the block's
-          parcels in proportion to dwelling units, so an apartment building gets more people than
-          the houses next to it. City of Madison parcels list their units; elsewhere units are
-          estimated (one per house, apartment buildings by floor area from OpenStreetMap). Changes
-          since 2020 aren't reflected.
+          <strong>Homes</strong>: residents, wherever people live, however they travel today. 2020
+          Census block counts, spread over the block's parcels in proportion to dwelling units, so
+          an apartment building gets more people than the houses next to it. In Madison, whose
+          parcels list today's units, each block adds the units built since 2020 at the city's 2020
+          persons per unit; elsewhere units are estimated (one per house, apartment buildings by
+          floor area from OpenStreetMap) and the 2020 count stands.
         </li>
         <li>
           <strong>Jobs</strong>: LEHD LODES 2023 workplace counts per census block.

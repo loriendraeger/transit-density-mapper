@@ -70,7 +70,8 @@ A **for-fun learning project**. The owner is interested in GIS and transit.
 | Merged-stop frequency (2026-10-19) | **Combine all routes**, counting only departures you can board. Per-route numbers are shown too. |
 | Per-direction frequency (2026-10-20; replaces the 2026-10-19 ×2 rule for one-way stops) | A rider boards one way, so frequency is **per direction**: each route counts the **average of the ways it runs** at the merged stop (owner's choice over the busier direction), then routes add up. Ways = GTFS `direction_id`, except that a route's two directions whose headings at the stop (bearing to the next stop) are within `same_way_max_deg` (90°) are one way and add up (loops pass one platform both ways). One side of a couplet or a terminus has one way and counts in full, so no correction factor. |
 | Crossing penalty (2026-10-19, confirmed after review) | **Barrier-style**, implemented as the **corner model** (see [Walk network](#walk-network)): trunk/primary/secondary roads can only be crossed at signals or marked crossings, costing the expected wait plus the walk across. **Unmarked crossings of them stay forbidden** (owner kept this over Wisconsin's every-intersection-is-a-crosswalk rule). Waits per class in `config/road_classes.csv`. |
-| Population (2026-10-19) | **2020 Census blocks, split among parcels by dwelling units** (dasymetric). Madison parcels have `TotalDwellingUnits`; elsewhere units are estimated. Not capturing growth since 2020 is an accepted limitation. |
+| Population (2026-10-19; revised 2026-10-21) | **2020 Census blocks, split among parcels by dwelling units** (dasymetric). Madison parcels have current `TotalDwellingUnits`; **Madison blocks add the net change in units since 2020 × 2.08 persons per unit** (Madison's 2020 ratio), so post-2020 apartments count (+28k people; 36 blocks empty in 2020 now populated). Elsewhere units are estimated and the 2020 count stands. CV R² 0.152 → 0.160 (default), 0.188 → 0.200 (best fit). |
+| No car-ownership weighting (2026-10-21) | **Owner's call: measure where people live and go irrespective of mode.** No zero-car households or other "likely rider" adjustments: a dense place where everyone drives is an opportunity, not low potential. (The critique suggested ACS zero-car households as a strong ridership predictor; deliberately not used.) |
 | Jobs (2026-10-19) | **LEHD LODES 8 WAC, 2023**, at a point inside each block (lumping big suburban blocks is accepted). |
 | Destinations (2026-10-19; revised 2026-10-21) | **Other destinations** = OSM POIs (per-kind weights in `config/poi_categories.csv` rank places *within* a category) with each category group's **total set by its share of trips in the 2022 NHTS** (urban trips; `config/trip_purposes.csv`, `config/destination_groups.csv`), plus **retail and health-care jobs** (LODES CNS07+CNS16) at a fitted points-per-job rate, since OSM can't tell a supermarket from a corner store. Both beat the hand weights in cross-validation against boardings (20/20 splits); jobs by industry *replacing* OSM did worse. No category sliders. |
 | Score (2026-10-19; revised 2026-10-21) | Three components, **Homes** (residents), **Jobs**, **Other destinations**, each summed with the **decay weight** of its walk time, **normalized 0–100 against the best stop**, then weight-averaged. **Fixed**: 10 min walk, exponential decay with a **4 min half-life** (owner's pick: the fit preferred 1–2 min by a small margin; 4 min keeps the 10-minute walk meaningful). Default weights fit to ridership (homes 5, jobs 0.5, other destinations 4). |
@@ -240,8 +241,10 @@ exports in EPSG:4326.
 
 ### Trip generators
 
-- **Population**: block `POP20` split over its parcels by dwelling units (parcel point
-  = point on surface). Madison: `TotalDwellingUnits`. Elsewhere: a residential parcel =
+- **Population**: each block's current estimate (`gen.block_pop`: `POP20`, plus in blocks
+  whose units are all on Madison parcels, (units now − `HOUSING20`) × 2.08, not below 0;
+  adding the change keeps dorm residents that no unit count includes) split over its
+  parcels by dwelling units (parcel point = point on surface). Madison: `TotalDwellingUnits`. Elsewhere: a residential parcel =
   1 unit unless it holds OSM apartment/dormitory/terrace buildings (floor area ÷ 90 m²,
   3 levels if untagged); condo stacks (identical polygons) count once. Sanity: 85.5k
   estimated units outside Madison vs ~80k in the census. Blocks with people but no unit
@@ -424,7 +427,8 @@ Things learned the hard way; check these before debugging the same problem again
   (owner's local notes, deliberately not committed; may be missing in a fresh clone).
   Its top suggestions: validate the score against stop-level boardings and fit the
   weights (done 2026-10-20, see [Calibration](#calibration-against-ridership-2026-10-20); the MPO
-  also has an April 2025 APC-based estimate, post-BRT, only as a PDF map: worth asking for); use current dwelling units for population and add ACS zero-car households;
+  also has an April 2025 APC-based estimate, post-BRT, only as a PDF map: worth asking for); use current dwelling units for population (done 2026-10-21); add ACS zero-car households
+  (declined by the owner, see Decisions);
   per-direction frequency instead of the ×2 rule (done 2026-10-20); separate
   origin/destination scores and a stop-overlap view.
 - **Faster blobs (offered, not done)**: build each band from the previous band plus the

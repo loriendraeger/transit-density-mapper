@@ -50,10 +50,13 @@ def test_platforms_snap_close_to_network(db):
     assert scalar(db, "SELECT max(snap_dist) FROM net.platform_vertex") < 50
 
 
-def test_population_sums_to_census(db):
+def test_population_sums_to_block_totals(db):
+    """Placed population = the blocks' current estimates; growth since 2020 is modest."""
     placed = scalar(db, "SELECT sum(pop) FROM gen.population")
-    census = scalar(db, "SELECT sum(pop) FROM staging.blocks")
-    assert placed == pytest.approx(census, rel=1e-6)
+    blocks = scalar(db, "SELECT sum(pop) FROM gen.block_pop")
+    pop2020 = scalar(db, "SELECT sum(pop2020) FROM gen.block_pop")
+    assert 1.0 <= blocks / pop2020 < 1.15
+    assert placed == pytest.approx(blocks, rel=1e-6)
 
 
 def test_estimated_units_near_census_outside_madison(db):
