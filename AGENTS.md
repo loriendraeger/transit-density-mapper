@@ -308,6 +308,13 @@ The `fit` step (`70_validation/`, `fit.py`; runs in `make`, ~5 s, before `stops.
   (expected + 5), expected = fit at the fitted settings × weekday frequency (fixed, not
   the sliders); drawer section and table column. Report with correlations and the
   biggest residuals: `data/build/validation/ridership.md`.
+- **BRT stations over-perform (owner reviewed 2026-10-21, left as is)**: the 19 stations
+  have a median riders-vs-expected of ×4.3 (other Route A stops ×1.5, the rest ×1.02).
+  Not a walk-model bug (Route A walksheds are larger than average); a longer station
+  walkshed only gets to ×2.3. Likely: the 2024 boardings are the old Route A's busiest
+  stops, where the stations were then sited (selection), plus a rapid-line premium.
+  A station term in the model would fit ×5 and raise R² 0.18 → 0.25; the owner chose
+  to wait for post-BRT (2025 APC) data instead.
 - **Caveats**: 2024 riders vs. 2026 service; frequency is partly circular; boardings
   per trip also depend on where the route goes and position on the line; residuals are
   where the placement question starts, not answers.

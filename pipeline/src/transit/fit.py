@@ -137,7 +137,8 @@ def fit_log(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, float]:
     x1 = np.column_stack([np.ones(len(x)), x])
 
     def loss(q: np.ndarray) -> tuple[float, np.ndarray]:
-        p = np.exp(q)  # positivity
+        # exp keeps the parameters positive; the clip keeps a wandering start finite.
+        p = np.exp(np.clip(q, -30, 30))
         z = x1 @ p
         r = ly - np.log1p(z)
         # d/dq: -2 r / (1 + z) * x, times dp/dq = p
