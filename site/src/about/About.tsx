@@ -20,9 +20,12 @@ export default function About(): JSX.Element {
     <article class="about">
       <h1>How this works</h1>
       <p class="lede">
-        For every Madison Metro stop: who lives and works within a short walk, what there is to walk
-        to, and how often the bus comes. Everything adjustable (walk time, decay, weights, service
-        period) is computed in your browser from precomputed walk times.
+        For every Madison Metro stop: its ridership potential (the homes, jobs and places to go
+        within a short walk, and what riding from it connects to) and its transit density (how much
+        is close by, and how often the bus comes). It measures where people live and go, however
+        they travel today: a dense place where everyone drives is an opportunity, not low potential.
+        Everything adjustable (walk limit, half-life, weights, service period) is computed in your
+        browser from precomputed walking and transit travel times.
       </p>
 
       <h2>Stops</h2>
@@ -118,14 +121,17 @@ export default function About(): JSX.Element {
       <Show when={data()}>
         {(d) => (
           <p>
-            Each of homes, jobs and other destinations is summed over everything within the walk
-            limit (by default {d().settings.score.walk_min} minutes), each counted less the farther
-            it is (its weight halves every half-life, by default {d().settings.score.half_life_min}{' '}
-            minutes), then scaled 0–100 against the best stop. The score is their weighted average;
-            the default weights (homes {d().settings.score.weights.pop}, jobs{' '}
-            {d().settings.score.weights.jobs}, other destinations {d().settings.score.weights.dest})
-            are fit to ridership, below. People and places within reach of several stops count for
-            each of them.
+            Four components. Homes, jobs and other destinations are each summed over everything
+            within the walk limit (by default {d().settings.score.walk_min} minutes), each counted
+            less the farther it is (its weight halves every half-life, by default{' '}
+            {d().settings.score.half_life_min} minutes). Transit connections count what riding from
+            the stop reaches (below). Each component is scaled 0–100 against the best stop, and the
+            score is their weighted average; the default weights (homes{' '}
+            {d().settings.score.weights.pop}, jobs {d().settings.score.weights.jobs}, other
+            destinations {d().settings.score.weights.dest}, transit connections{' '}
+            {d().settings.score.weights.transit}) are fit to ridership, below. People and places
+            within reach of several stops count for each of them, so scores compare stops' potential
+            rather than counting riders.
           </p>
         )}
       </Show>
@@ -143,9 +149,14 @@ export default function About(): JSX.Element {
             barely waits, so the score uses the {d().settings.score.access.percentile}th-percentile
             trip, which predicted ridership best. Jobs and destinations reached count less the
             longer the trip (halving every {d().settings.score.access.half_life_min} minutes, none
-            past {d().settings.score.access.max_minutes}). Adding transit connections raised how
-            much of the variation in boardings per trip the model explains from{' '}
-            {Math.round(d().settings.fit.walk_only_cv_r2 * 100)} % to{' '}
+            past {d().settings.score.access.max_minutes}).{' '}
+            {d().settings.score.access.dest_weight < 0.01
+              ? 'In practice the fit counts jobs reached: destinations reached add nothing beyond them, since the two go together. '
+              : d().settings.score.access.jobs_weight < 0.01
+                ? 'In practice the fit counts destinations reached: jobs reached add nothing beyond them. '
+                : ''}
+            Adding transit connections raised how much of the variation in boardings per trip the
+            model explains from {Math.round(d().settings.fit.walk_only_cv_r2 * 100)} % to{' '}
             {Math.round(d().settings.fit.cv_r2 * 100)} % (cross-validated). Each stop's details also
             show residents who can get to it by transit, and the map can shade its transit reach.
           </p>
@@ -189,13 +200,13 @@ export default function About(): JSX.Element {
             </p>
             <p>
               <strong>Riders vs. expected</strong> (a stop color option) divides each stop's
-              boardings by the fit's expectation from its catchment and service. Far fewer riders
-              than expected can mean a stop crowded by a neighbor, a route that goes nowhere useful,
-              or a barrier the walk model misses; far more, a draw the catchment doesn't count.
-              Caveats: the ridership predates the BRT (September 2024), so the BRT stations, likely
-              sited where the old Route A's riders already were, sit far above expectations; and
-              service has partly gone where riders already were, so frequency also stands in for
-              demand.
+              boardings by the fit's expectation from its catchment, transit connections and
+              service. Far fewer riders than expected can mean a stop crowded by a neighbor, a route
+              that goes nowhere useful, or a barrier the walk model misses; far more, a draw the
+              catchment doesn't count. Caveats: the ridership predates the BRT (September 2024), so
+              the BRT stations, likely sited where the old Route A's riders already were, sit far
+              above expectations; and service has partly gone where riders already were, so
+              frequency also stands in for demand.
             </p>
           </>
         )}
@@ -218,8 +229,8 @@ export default function About(): JSX.Element {
       </Show>
       <p class="fine">
         Data provided under license granted by City of Madison, WI, Metro Transit. Map data ©
-        OpenStreetMap contributors. Code GPL-3.0; data outputs ODbL. A for-fun project, not
-        affiliated with Metro Transit.
+        OpenStreetMap contributors. Transit routing with R5 (Conveyal) via r5py. Code GPL-3.0; data
+        outputs ODbL. A for-fun project, not affiliated with Metro Transit.
       </p>
     </article>
   )
