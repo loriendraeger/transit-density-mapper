@@ -135,6 +135,24 @@ layers = ["hex", "hex_parts", "pois", "platforms", "routes"]
 minzoom = 10
 maxzoom = 15
 
+[access]
+# Transit accessibility (access.py, R5 via r5py; 2026-10-21): travel times by walking and
+# riding from each stop to every hex, and from populated areas to each stop, for every
+# departure minute in a weekday morning window, summarized as percentiles (low = a rider
+# who plans around the schedule; the median = one who shows up at random).
+departure_hour = 7
+window_hours = 2
+access_max_minutes = 60            # gravity cap: nothing beyond counts
+access_percentiles = [10, 25, 50]  # computed; the score uses access_percentile
+access_band_min = 2                # travel-time bands for the gravity sums
+reverse_cell_m = 450               # reverse (homes -> stop) origins: hex cells this size
+java_memory = "5G"                 # R5's Java heap (the Docker VM has ~7 GB)
+# The score's "transit connections" term: jobs + other destinations reachable by transit,
+# each discounted by travel time (gravity). Chosen against boardings (2026-10-21): the
+# 10th percentile fit best (riders plan around the schedule; 25th and median less well),
+# and the fit was flat for half-lives 15-30 min.
+access_percentile = 10
+access_half_life_min = 20
 [ridership]
 # Observed boardings (MPO, sources.toml [ridership]) calibrate the score: `transit fit`
 # fits the site's score formula (weights on population, jobs, destinations and the

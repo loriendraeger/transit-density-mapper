@@ -36,6 +36,7 @@ from . import config
 
 OUT = config.BUILD / "validation" / "ridership.md"
 COMPONENTS = ("pop", "jobs", "osm", "shopjobs")
+ACCESS_MEASURES = ("jobs", "osm", "shopjobs")
 # Boardings are weekday averages, so frequency is the weekday mix.
 WEEKDAY_PERIODS = ("peak", "offpeak")
 SLIDER_MAX = 5
@@ -118,7 +119,37 @@ def load() -> dict:
         "walk_range": p["ridership"]["fit_walk_min_range"],
         "walk_min": p["score"]["walk_min"],
         "half_life": p["score"]["half_life_min"],
+        "access": _load_access(idx, p["access"]),
+        "access_cfg": p["access"],
     }
+
+
+def _load_access(idx: dict, a: dict) -> dict:
+    """Transit accessibility bands (access.py) for every percentile: [stop, band,
+    (jobs, osm, shopjobs)] reached by riding."""
+    n_bands = a["access_max_minutes"] // a["access_band_min"]
+    out = {}
+    with psycopg.connect("") as conn:
+        for pct in a["access_percentiles"]:
+            arr = np.zeros((len(idx), n_bands, 3))
+            for cid, band, meas, v in conn.execute(
+                "SELECT cluster_id, band, measure, value FROM catch.access_bands WHERE pct = %s",
+                (pct,),
+            ):
+                i = idx.get(cid)
+                if i is not None and meas in ACCESS_MEASURES:
+                    arr[i, band, ACCESS_MEASURES.index(meas)] += v
+            out[pct] = arr
+    return out
+
+
+def access_terms(d: dict, pct: int, half_life: float, k_shop: float) -> np.ndarray:
+    """Gravity sums of jobs and of other destinations (osm + k * shop jobs) reachable by
+    transit: each band weighted 0.5^(t / half-life) at its middle; [stop, (jobs, dest)]."""
+    a = d["access_cfg"]
+    t = (np.arange(a["access_max_minutes"] // a["access_band_min"]) + 0.5) * a["access_band_min"]
+    g = np.einsum("nbk,b->nk", d["access"][pct], 0.5 ** (t / half_life))
+    return np.column_stack([g[:, 0], g[:, 1] + k_shop * g[:, 2]])
 
 
 def components(d: dict, walk_min: float, half_life: float) -> np.ndarray:
@@ -190,21 +221,48 @@ def fit_model(d: dict) -> dict:
     profile = [
         {"half_life": h, "r2": at(h)["r2"]} for h in range(d["hl_range"][0], d["hl_range"][1] + 1)
     ]
+    walk_only = {"r2": m["r2"], "cv_r2": cv_r2(x_all[in_fit] / scale, y)}
 
-    # Best fit: the walk limit and half-life that predict boardings best, with other
-    # destinations defined as above (osm + k * shop jobs, k fixed), weights refit.
-    def three(walk_min: float, half_life: float) -> np.ndarray:
+    # Second stage: add transit connections (access.py). Jobs and other destinations
+    # reachable by riding enter separately, then fold into one term at their fitted
+    # ratio: transit = c_jobs * A_jobs + c_dest * A_dest.
+    ac = d["access_cfg"]
+
+    def walk3(walk_min: float, half_life: float) -> np.ndarray:
         x = components(d, walk_min, half_life)
         return np.column_stack([x[:, 0], x[:, 1], x[:, 2] + k_shop * x[:, 3]])
 
+    acc = access_terms(d, ac["access_percentile"], ac["access_half_life_min"], k_shop)
+    x5 = np.column_stack([walk3(d["walk_min"], d["half_life"]), acc])
+    sc5 = np.maximum(x5[in_fit].max(axis=0), 1e-9)
+    p5, r2_5 = fit_log(x5[in_fit] / sc5, y)
+    w5 = p5[1:] / sc5  # per raw unit
+    c_acc = w5[3:] / max(w5[3:].sum(), 1e-12)  # relative weights of A_jobs, A_dest
+    transit = acc @ c_acc
+    expected = freq * (p5[0] + x5 @ w5)
+    x4 = np.column_stack([x5[:, :3], transit])
+    site_w = np.append(w5[:3], w5[3:].sum()) * x4.max(axis=0)
+    site_w = np.round(site_w / site_w.max() * SLIDER_MAX / SLIDER_STEP) * SLIDER_STEP
+    sc4 = np.maximum(x4[in_fit].max(axis=0), 1e-9)
+
+    # Transit settings compared (at the default walk; for the report).
+    access_grid = []
+    for pct in ac["access_percentiles"]:
+        for hl in (5, 10, 15, 20, 30):
+            xa = np.column_stack([x5[:, :3], access_terms(d, pct, hl, k_shop)])
+            sca = np.maximum(xa[in_fit].max(axis=0), 1e-9)
+            access_grid.append({"pct": pct, "half_life": hl, "r2": fit_log(xa[in_fit] / sca, y)[1]})
+
+    # Best fit: the walk limit and half-life that predict boardings best, other
+    # destinations and transit connections defined as above, weights refit.
     grid = []
     for walk_min in range(d["walk_range"][0], d["walk_range"][1] + 1):
         for hl in range(d["hl_range"][0], d["hl_range"][1] + 1):
-            x3 = three(walk_min, hl)
-            sc = np.maximum(x3[in_fit].max(axis=0), 1e-9)
-            p3, r2 = fit_log(x3[in_fit] / sc, y)
+            xg = np.column_stack([walk3(walk_min, hl), transit])
+            sc = np.maximum(xg[in_fit].max(axis=0), 1e-9)
+            pg, r2 = fit_log(xg[in_fit] / sc, y)
             grid.append(
-                {"walk_min": walk_min, "half_life": hl, "r2": r2, "p": p3, "sc": sc, "x": x3}
+                {"walk_min": walk_min, "half_life": hl, "r2": r2, "p": pg, "sc": sc, "x": xg}
             )
     best = max(grid, key=lambda g: g["r2"])
     best_w = best["p"][1:] / best["sc"] * best["x"].max(axis=0)
@@ -218,14 +276,18 @@ def fit_model(d: dict) -> dict:
     }
     return {
         "in_fit": in_fit,
-        "r2": m["r2"],
-        "cv_r2": cv_r2(x_all[in_fit] / scale, y),
+        "r2": r2_5,
+        "cv_r2": cv_r2(x4[in_fit] / sc4, y),
+        "walk_only": walk_only,
         "site_weights": site_w,
         "k_shop": k_shop,
+        "c_acc": c_acc,
         "expected": expected,
         "dest": dest,
+        "transit": transit,
         "x": x_all,
         "profile": profile,
+        "access_grid": access_grid,
         "grid": grid,
         "best_fit": best_fit,
     }
@@ -238,7 +300,11 @@ def write_db(d: dict, m: dict) -> None:
         "w_pop": m["site_weights"][0],
         "w_jobs": m["site_weights"][1],
         "w_dest": m["site_weights"][2],
+        "w_transit": m["site_weights"][3],
         "shop_jobs_weight": m["k_shop"],
+        "access_jobs_weight": m["c_acc"][0],
+        "access_dest_weight": m["c_acc"][1],
+        "walk_only_cv_r2": m["walk_only"]["cv_r2"],
         "r2": m["r2"],
         "cv_r2": m["cv_r2"],
         "n_fit": int(m["in_fit"].sum()),
@@ -248,6 +314,7 @@ def write_db(d: dict, m: dict) -> None:
         "best_w_pop": m["best_fit"]["weights"][0],
         "best_w_jobs": m["best_fit"]["weights"][1],
         "best_w_dest": m["best_fit"]["weights"][2],
+        "best_w_transit": m["best_fit"]["weights"][3],
         "best_r2": m["best_fit"]["r2"],
         "best_cv_r2": m["best_fit"]["cv_r2"],
     }
@@ -280,9 +347,10 @@ def report(d: dict, m: dict) -> str:
     b, freq = d["boardings"][has], d["freq"][has]
     m_ = d["match"]
     x = m["x"]
-    norm = np.column_stack([x[:, 0], x[:, 1], m["dest"]])
+    norm = np.column_stack([x[:, 0], x[:, 1], m["dest"], m["transit"]])
     norm = 100 * norm / np.maximum(norm.max(axis=0), 1e-9)
     sw = m["site_weights"]
+    ac = d["access_cfg"]
     score = (norm @ sw / sw.sum())[has]
     names = [f"{s['name']} ({s['id']})" for s in d["stops"]]
     reasons = [", ".join(s["reasons"] or []) for s in d["stops"]]
@@ -310,11 +378,34 @@ def report(d: dict, m: dict) -> str:
         "",
         f"- Settings (pipeline.toml [score]): walk limit {d['walk_min']} min, half-life "
         f"{d['half_life']} min.",
-        f"- R² {m['r2']:.3f} ({CV_FOLDS}-fold cross-validated {m['cv_r2']:.3f}).",
+        f"- R² {m['r2']:.3f} ({CV_FOLDS}-fold cross-validated {m['cv_r2']:.3f}); walk "
+        f"catchment only: cross-validated {m['walk_only']['cv_r2']:.3f}.",
         f"- Default sliders (0–{SLIDER_MAX}): homes {sw[0]:g}, jobs {sw[1]:g}, other "
-        f"destinations {sw[2]:g}.",
+        f"destinations {sw[2]:g}, transit connections {sw[3]:g}.",
         f"- Other destinations = OSM destination points + {m['k_shop']:.3f} × retail and "
         "health-care jobs.",
+        f"- Transit connections ([access]: {ac['access_percentile']}th percentile, "
+        f"{ac['access_half_life_min']} min half-life, {ac['access_max_minutes']} "
+        f"min cap) = {m['c_acc'][0]:.2f} × jobs + {m['c_acc'][1]:.2f} × other destinations "
+        "reachable (relative weights per unit).",
+        "",
+        "Transit connections: R² by percentile and half-life (default walk):",
+        "",
+        "| Percentile | "
+        + " | ".join(f"{h} min" for h in sorted({g["half_life"] for g in m["access_grid"]}))
+        + " |",
+        "|---|" + "---|" * len({g["half_life"] for g in m["access_grid"]}),
+        *(
+            f"| {pct} | "
+            + " | ".join(
+                f"{g['r2']:.3f}"
+                for g in sorted(
+                    (g for g in m["access_grid"] if g["pct"] == pct), key=lambda g: g["half_life"]
+                )
+            )
+            + " |"
+            for pct in sorted({g["pct"] for g in m["access_grid"]})
+        ),
         "",
         f"- Best fit (site preset; walk {d['walk_range'][0]}–{d['walk_range'][1]} min, "
         f"half-life {d['hl_range'][0]}–{d['hl_range'][1]} min searched): walk limit "

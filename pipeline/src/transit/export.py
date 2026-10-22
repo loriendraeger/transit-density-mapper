@@ -40,6 +40,8 @@ CATCH_FILE = SITE_DATA / "catchments.bin"
 #   n_bands, per band: n_polygons, per polygon: n_rings, per ring: n_points, then
 #   2 x n_points zigzag varints (x, y in 1e-5 degrees, delta-encoded; first absolute).
 CATCH_MAGIC = b"TDMC"
+ACCESS_FILE = SITE_DATA / "access.bin"
+ACCESS_MAGIC = b"TDMA"
 CATCH_VERSION = 1
 TIME_STEP_S = 10
 # Coordinates in catchment files: integer units of 1e-5 degrees (~1 m), delta-encoded.
@@ -158,6 +160,7 @@ def stops_json() -> None:
             c["riders"] = None
             c["special"] = []
             c["overlap"] = None
+            c["access"] = None
         for r in conn.execute(
             "SELECT cluster_id, period, route_id, trips_per_hour FROM transit.period_freq"
         ):
@@ -213,6 +216,31 @@ def stops_json() -> None:
             if r["grp"] == "pop":
                 o["residents"] = round(r["in_reach"])
                 o["residents_far"] = round(r["far_without"])
+        # Transit connections: per stop, totals reached by riding in each travel-time band
+        # at the chosen percentile (access.py); homes = residents who can reach the stop.
+        acc_cfg = config.pipeline()["access"]
+        n_acc = acc_cfg["access_max_minutes"] // acc_cfg["access_band_min"]
+        pct = acc_cfg["access_percentile"]
+
+        def acc_record(c):
+            if c["access"] is None:
+                c["access"] = {k: [0] * n_acc for k in ("jobs", "osm", "shopjobs", "homes")}
+            return c["access"]
+
+        for r in conn.execute(
+            "SELECT cluster_id, band, measure, value FROM catch.access_bands "
+            "WHERE pct = %s AND measure IN ('jobs', 'osm', 'shopjobs')",
+            (pct,),
+        ):
+            c = by_id.get(r["cluster_id"])
+            if c is not None:
+                acc_record(c)[r["measure"]][r["band"]] = round(r["value"], 1)
+        for r in conn.execute(
+            "SELECT cluster_id, band, value FROM catch.access_rev_bands WHERE pct = %s", (pct,)
+        ):
+            c = by_id.get(r["cluster_id"])
+            if c is not None:
+                acc_record(c)["homes"][r["band"]] = round(r["value"])
         fit = {
             r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM valid.fit_params")
         }
@@ -251,8 +279,26 @@ def stops_json() -> None:
             "score": {
                 "walk_min": int(fit["walk_min"]),
                 "half_life_min": fit["half_life"],
-                "weights": {"pop": fit["w_pop"], "jobs": fit["w_jobs"], "dest": fit["w_dest"]},
+                "weights": {
+                    "pop": fit["w_pop"],
+                    "jobs": fit["w_jobs"],
+                    "dest": fit["w_dest"],
+                    "transit": fit["w_transit"],
+                },
                 "shop_jobs_weight": round(fit["shop_jobs_weight"], 5),
+                # Transit connections (access.py, fit.py): stops.json access bands, each
+                # band discounted by 0.5^(t / half-life); jobs and other destinations
+                # mixed at the fitted per-unit weights.
+                "access": {
+                    "percentile": acc_cfg["access_percentile"],
+                    "half_life_min": acc_cfg["access_half_life_min"],
+                    "max_minutes": acc_cfg["access_max_minutes"],
+                    "band_min": acc_cfg["access_band_min"],
+                    "departure_hour": acc_cfg["departure_hour"],
+                    "window_hours": acc_cfg["window_hours"],
+                    "jobs_weight": round(fit["access_jobs_weight"], 4),
+                    "dest_weight": round(fit["access_dest_weight"], 4),
+                },
                 # The settings that predict boardings best (fit.py grid search).
                 "best_fit": {
                     "walk_min": int(fit["best_walk_min"]),
@@ -261,6 +307,7 @@ def stops_json() -> None:
                         "pop": fit["best_w_pop"],
                         "jobs": fit["best_w_jobs"],
                         "dest": fit["best_w_dest"],
+                        "transit": fit["best_w_transit"],
                     },
                     "r2": round(fit["best_r2"], 3),
                     "cv_r2": round(fit["best_cv_r2"], 3),
@@ -270,6 +317,7 @@ def stops_json() -> None:
             # group's total destination points.
             "purpose_shares": {r["grp"]: r["share"] for r in shares},
             "fit": {
+                "walk_only_cv_r2": round(fit["walk_only_cv_r2"], 3),
                 "r2": round(fit["r2"], 3),
                 "cv_r2": round(fit["cv_r2"], 3),
                 "n_fit": int(fit["n_fit"]),
@@ -469,6 +517,61 @@ def _catchment(cid: str) -> tuple[str, bytes]:
     return cid, _pack_record(id_deltas, times, bands_enc)
 
 
+def _write_indexed(path: Path, magic: bytes, version: int, header: dict, records: dict) -> int:
+    """magic | u16 version | u32 index length | index JSON (header + "stops": id ->
+    [offset, length]) | records. Returns the index length."""
+    order = sorted(records)
+    index_len = 0
+    # Offsets depend on the index's own length: repeat until it stops changing.
+    while True:
+        pos = len(magic) + 2 + 4 + index_len
+        entries = {}
+        for cid in order:
+            entries[cid] = [pos, len(records[cid])]
+            pos += len(records[cid])
+        index = json.dumps({**header, "stops": entries}, separators=(",", ":")).encode()
+        if len(index) == index_len:
+            break
+        index_len = len(index)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as f:
+        f.write(magic + struct.pack("<HI", version, len(index)) + index)
+        for cid in order:
+            f.write(records[cid])
+    return len(index)
+
+
+def access_bin() -> None:
+    """Each stop's transit travel time to every hex it reaches, for the isochrone
+    (access.bin, read by site/src/lib/access.ts). Same layout as catchments.bin; a record
+    is raw deflate of: n, hex id deltas (ascending, unsigned LEB128 varints), then n bytes
+    of minutes, at the chosen percentile."""
+    pct = config.pipeline()["access"]["access_percentile"]
+    rows: dict[str, list[tuple[int, int]]] = {}
+    with psycopg.connect("") as conn:
+        for cid, hex_id, t in conn.execute(
+            f"SELECT cluster_id, hex_id, p{int(pct)} FROM catch.access_times "
+            f"WHERE p{int(pct)} IS NOT NULL ORDER BY cluster_id, hex_id"
+        ):
+            rows.setdefault(cid, []).append((hex_id, t))
+    records = {}
+    for cid, pairs in rows.items():
+        out = bytearray()
+        _varint(out, len(pairs))
+        prev = 0
+        for hex_id, _ in pairs:
+            _varint(out, hex_id - prev)
+            prev = hex_id
+        out.extend(min(t, 255) for _, t in pairs)
+        z = zlib.compressobj(9, zlib.DEFLATED, -15)
+        records[cid] = z.compress(bytes(out)) + z.flush()
+    n = _write_indexed(ACCESS_FILE, ACCESS_MAGIC, 1, {"version": 1, "percentile": pct}, records)
+    print(
+        f"wrote {ACCESS_FILE.name}: {len(records)} stops, "
+        f"{ACCESS_FILE.stat().st_size / 1e6:.1f} MB (index {n / 1e3:.0f} kB)"
+    )
+
+
 def catchments(workers: int | None = None) -> None:
     """All stops' catchments in one binary file with an index (layout: CATCH_FILE)."""
     with psycopg.connect("") as conn:
@@ -486,38 +589,18 @@ def catchments(workers: int | None = None) -> None:
             if i % 100 == 0:
                 print(f"  {i}/{len(ids)} catchments", flush=True)
 
-    # Offsets depend on the index's own length, which depends on the offsets' digits:
-    # lay out with a guess, then repeat until the index length stops changing.
-    order = sorted(records)
-    index_len = 0
-    while True:
-        start = len(CATCH_MAGIC) + 2 + 4 + index_len
-        entries, pos = {}, start
-        for cid in order:
-            entries[cid] = [pos, len(records[cid])]
-            pos += len(records[cid])
-        index = json.dumps(
-            {
-                "version": CATCH_VERSION,
-                "scale": COORD_SCALE,
-                "time_step_s": TIME_STEP_S,
-                "stops": entries,
-            },
-            separators=(",", ":"),
-        ).encode()
-        if len(index) == index_len:
-            break
-        index_len = len(index)
-    CATCH_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(CATCH_FILE, "wb") as f:
-        f.write(CATCH_MAGIC + struct.pack("<HI", CATCH_VERSION, len(index)) + index)
-        for cid in order:
-            f.write(records[cid])
+    index_len = _write_indexed(
+        CATCH_FILE,
+        CATCH_MAGIC,
+        CATCH_VERSION,
+        {"version": CATCH_VERSION, "scale": COORD_SCALE, "time_step_s": TIME_STEP_S},
+        records,
+    )
     (SITE_DATA / "catchments.json").unlink(missing_ok=True)  # the old format
     sizes = sorted(len(r) for r in records.values())
     print(
         f"wrote {CATCH_FILE.name}: {len(ids)} stops, {CATCH_FILE.stat().st_size / 1e6:.1f} MB "
-        f"(index {len(index) / 1e3:.0f} kB; per stop median {sizes[len(sizes) // 2] / 1e3:.0f} kB, "
+        f"(index {index_len / 1e3:.0f} kB; per stop median {sizes[len(sizes) // 2] / 1e3:.0f} kB, "
         f"max {sizes[-1] / 1e3:.0f} kB)"
     )
 

@@ -78,6 +78,7 @@ A **for-fun learning project**. The owner is interested in GIS and transit.
 | Blob rendering (2026-10-19) | Cumulative 1-minute bands stacked with per-band opacities solved so the **blob's opacity at time t follows the score's decay curve**. |
 | Licenses (2026-10-19) | **Same split as the sibling**: code GPL-3.0-or-later (`LICENSE`), docs CC BY-SA 4.0 (`LICENSE-DOCS`), outputs ODbL 1.0 with upstream attributions (`LICENSE-DATA`; required by OSM). |
 | Presets (2026-10-21) | Walk-limit and half-life sliders came back with two buttons: **Default assumption** (`[score]`: 10 min, 4 min half-life, weights fit there; the app's defaults) and **Best fit** (walk 5–20 × half-life 1–10 searched; weights refit; other destinations keep the default fit's points per shop job). Best fit 2026-10-21: 5 min walk, 3 min half-life, homes 3.5, jobs 0, other destinations 5; CV R² 0.188 vs. 0.152. |
+| Transit connections (2026-10-21) | A **fourth score term**: jobs + other destinations reachable by **transit** (R5 via r5py; walk + ride + transfers), **gravity**: each discounted by 0.5^(t / 20 min), nothing past **60 min**; weekday **7–9 am**, every departure minute, **10th-percentile** travel time (owner: planned trips shouldn't pay half the headway; R5/Conveyal practice; the fit preferred p10 > p25 > median). Jobs and destinations reached fold into one term at the fitted ratio (currently all jobs: destinations reached add nothing once jobs are in). Reverse measure: residents who can reach the stop (populated 450 m cells → stops), shown in the drawer only. CV R² 0.160 → **0.210** (default), 0.200 → **0.244** (best fit). Owner chose it as a score term with its own slider; the map shows the selected stop's **transit isochrone** (hexes by minutes, a layer toggle). |
 | Overlap with neighbors (2026-10-21) | **Marginal value**, route-aware: per home/job/destination within the default walk, its decay weight at this stop minus at the quickest other stop **sharing a route** (`catch.marginal`, `55_catchments/20_overlap.sql`); shown as a stop color ("What it adds over neighbors", share of the catchment at current weights), a drawer section (also residents who'd walk 2+ min more) and a table column. Median stop adds ~9 %. **Split catchments** (each place shared among all stops reaching it by decay weight) were tested as the score's basis and predicted boardings worse in 20/20 splits (default CV 0.164 → 0.139, best fit 0.198 → 0.154): the score keeps full catchments. Origin/destination split declined (round trips). |
 | Map behavior (2026-10-21) | Hex opacity doesn't change when a stop is selected. Opening/closing the drawer keeps the map's top-left corner fixed (a `resize` handler pans back MapLibre's keep-the-center resize) and pans only if the selected stop would be hidden. |
 | Calibration (2026-10-20; revised 2026-10-21) | Fit the score's weights to **observed boardings per trip** (MPO, Feb 2024) at the fixed walk/decay; the fit **is the default** (the preset button went away with the walk/decay sliders). Special stops (schools, campus, park-and-rides, airport, transfer points) found from **OSM + stop names**, left out of the fit. Leftovers shown as a **"Riders vs. expected" stop color** (owner's picks among options). |
@@ -95,7 +96,7 @@ A **for-fun learning project**. The owner is interested in GIS and transit.
 | Transforms | **Plain numbered SQL files** run via `psql` |
 | Orchestration | **Makefile** for step order; each step runs only when the SHA-256 of its inputs (files, config sections via `pipeline/deps.sh`, earlier steps' fingerprints) changes (`pipeline/stage.sh`), never by file timestamps (owner's call 2026-10-19); steps `exec` into one long-lived tools container |
 | Geo CLI tools | GDAL/OGR (`ogr2ogr`), `osmium-tool`, **tippecanoe**, `pmtiles` CLI |
-| Python libs | **pyosmium** (OSM with node ids), psycopg 3, **scipy** (clustering), **Shapely 2** (blob polygons), Typer |
+| Python libs | **pyosmium** (OSM with node ids), psycopg 3, **scipy** (clustering), **Shapely 2** (blob polygons), Typer, **r5py** (R5 transit routing; Java 21 in the container) |
 | Reproducibility | **Docker Compose**: `db` + a `pipeline` tools container (pinned GDAL/tippecanoe/osmium/uv). DB on host port **5433** so it can run beside the sibling's. |
 | Tile format | **PMTiles** (no tile server) |
 | Frontend | **Vite + Solid + TypeScript** (Node 24; see `site/.nvmrc`) |
@@ -127,10 +128,12 @@ URLs, layers, fields, licenses and recon findings live in `config/sources.toml`.
 ## Architecture
 
 ```
-download -> load -> staging -> network -> stops -> generators -> catchments -> export -> site
- (files)  (ogr2ogr,  (SQL:      (SQL:      (Python    (SQL:        (pgRouting   (tiles,
-          COPY,      typed,     corner     clustering dasymetric   per stop,    stops.json,
-          pyosmium)  3071)      model)     + SQL)     pop, POIs)   SQL sums)    catchments.bin)
+download -> load -> staging -> network -> stops -> generators -> catchments -> fit -> export -> site
+ (files)  (ogr2ogr,  (SQL:      (SQL:      (Python    (SQL:        (pgRouting   (ridership (tiles,
+          COPY,      typed,     corner     clustering dasymetric   per stop,    model)     stops.json,
+          pyosmium)  3071)      model)     + SQL)     pop, POIs)   SQL sums)               catchments.bin,
+                                                          \-> access (R5: transit       access.bin)
+                                                               travel times) -> fit
 ```
 
 Same file/database hybrid as public-private-shore: raw downloads are **files**, analysis
@@ -160,7 +163,8 @@ exports in EPSG:4326.
 │   └── stop_merge_overrides.csv   # hand fixes to stop merging (merge/split)
 ├── pipeline/
 │   ├── Dockerfile, pyproject.toml, uv.lock
-│   ├── src/transit/          # cli, config, download, load, osm, sqlrun, stops, reach, export
+│   ├── src/transit/          # cli, config, download, load, osm, sqlrun, stops, reach, access,
+│   │                         # purposes, fit, export
 │   ├── sql/
 │   │   ├── 00_init/          # extensions, schemas
 │   │   ├── 10_staging/       # GTFS, census, parcels, OSM (typed, reprojected)

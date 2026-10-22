@@ -1,4 +1,5 @@
-# Pipeline tools: GDAL/OGR, psql, osmium, tippecanoe, pmtiles, uv (Python 3.12).
+# Pipeline tools: GDAL/OGR, psql, osmium, tippecanoe, pmtiles, uv (Python 3.12), and a
+# Java 21 runtime for R5 (transit routing via r5py).
 # Pinned so the pipeline gives the same results regardless of what's on the host.
 
 # --- tippecanoe has no binary releases; build it in a throwaway stage -------------
@@ -19,7 +20,7 @@ ARG PMTILES_VERSION=1.31.2
 ARG TARGETARCH
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl make osmium-tool postgresql-client \
+      ca-certificates curl make osmium-tool postgresql-client openjdk-21-jre-headless \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=tippecanoe /opt/tippecanoe/bin/ /usr/local/bin/

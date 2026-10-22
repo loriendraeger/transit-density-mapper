@@ -35,8 +35,8 @@ COMMON  := $(call PY,config) $(call PY,sqlrun)
 _ := $(shell sh pipeline/deps.sh)
 
 .PHONY: all db-up tools-up db-down db-reset psql image download init load staging network \
-        stops generators reach catchments fit views-network views-generators export \
-        network-tiles generators-tiles stops-json catchments-bin basemap test lint site
+        stops generators reach catchments access fit views-network views-generators export \
+        network-tiles generators-tiles stops-json catchments-bin access-bin basemap test lint site
 
 all: export
 
@@ -102,10 +102,17 @@ catchments: reach generators | tools-up
 	$(STAGE) catchments '$(RUN) sql 55_catchments' $(S)/reach $(S)/generators \
 	    $(call SQL,55_catchments) $(D)/toml.walk $(D)/toml.score $(COMMON)
 
+# Transit accessibility (R5): travel times stop -> hexes and populated cells -> stops.
+# R5 itself reruns only when its inputs change (cached in data/build/r5/).
+access: generators | tools-up
+	$(STAGE) access '$(RUN) access' $(S)/generators $(S)/stops $(call PY,access) \
+	    data/raw/osm/wisconsin-latest.osm.pbf data/raw/gtfs/mmt_gtfs.zip \
+	    $(D)/toml.access $(D)/toml.walk $(D)/toml.study_area $(COMMON)
+
 # Observed boardings matched to stops, special stops flagged, then the score's weights
 # fit to them. Report: data/build/validation/ridership.md.
-fit: catchments | tools-up
-	$(STAGE) fit '$(RUN) sql 70_validation && $(RUN) fit' $(S)/catchments \
+fit: catchments access | tools-up
+	$(STAGE) fit '$(RUN) sql 70_validation && $(RUN) fit' $(S)/catchments $(S)/access \
 	    $(call SQL,70_validation) $(call PY,fit) config/special_stops.csv \
 	    $(D)/toml.ridership $(D)/toml.score $(D)/toml.frequency $(D)/toml.walk $(COMMON) \
 	    out:data/build/validation/ridership.md
@@ -120,7 +127,7 @@ views-generators: generators | tools-up
 	    $(call SQL,61_export_generators) $(COMMON)
 
 # Products: each file rebuilds only when its own inputs change (or it's missing).
-export: network-tiles generators-tiles stops-json catchments-bin
+export: network-tiles generators-tiles stops-json catchments-bin access-bin
 
 network-tiles: views-network | tools-up
 	$(STAGE) network-tiles '$(RUN) tiles network' $(S)/views-network $(D)/toml.tiles \
@@ -132,8 +139,13 @@ generators-tiles: views-generators | tools-up
 
 stops-json: catchments fit | tools-up
 	$(STAGE) stops-json '$(RUN) stops-json' $(S)/catchments $(S)/fit config/sources.toml \
-	    $(D)/toml.frequency $(D)/toml.walk $(D)/toml.stops $(D)/toml.score $(call PY,export) \
+	    $(D)/toml.frequency $(D)/toml.walk $(D)/toml.stops $(D)/toml.score $(D)/toml.access \
+	    $(call PY,export) \
 	    out:$(OUT)/stops.json
+
+access-bin: access | tools-up
+	$(STAGE) access-bin '$(RUN) access-bin' $(S)/access $(D)/toml.access $(call PY,export) \
+	    out:$(OUT)/access.bin
 
 catchments-bin: reach | tools-up
 	$(STAGE) catchments-bin '$(RUN) catchments' $(S)/reach $(D)/toml.catchments \

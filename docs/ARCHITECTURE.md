@@ -35,7 +35,8 @@ including the load is under 2.5 minutes.
 | `generators` | `transit purposes` (purposes.py, NHTS trip file) + `sql/40_generators` | `poi_categories.csv`, `destination_groups.csv`, `trip_purposes.csv`, `[generators]`, `[walk]`, `[study_area]` | `gen.*` |
 | `reach` | `transit reach` (reach.py) + `sql/50_reach` | `[walk]` | `catch.reach`, `catch.edge_time` |
 | `catchments` | `sql/55_catchments` | `[walk]` | `catch.gen_time`, `catch.bands` |
-| `fit` | `sql/70_validation`, `transit fit` (fit.py) | `special_stops.csv`, `[ridership]`, `[score]`, `[frequency]`, `[walk]` | `valid.*`, `data/build/validation/ridership.md` |
+| `access` | `transit access` (access.py; R5 via r5py, Java): clipped OSM + cleaned GTFS (`data/build/r5/`), travel times stop -> hexes and populated cells -> stops; matrices cached in `data/build/r5/*.npz` by a hash of their inputs | `[access]`, `[walk]` | `catch.access_times`, `catch.access_bands`, `catch.access_rev_bands` |
+| `fit` | `sql/70_validation`, `transit fit` (fit.py) | `special_stops.csv`, `[ridership]`, `[score]`, `[access]`, `[frequency]`, `[walk]` | `valid.*`, `data/build/validation/ridership.md` |
 | `export` | `sql/60_export_network`, `sql/61_export_generators`, then `transit tiles network`, `transit tiles generators`, `transit stops-json`, `transit catchments` (export.py) | `[tiles]`, `[frequency]`, `[catchments]`... | `site/public/data/` |
 | `basemap` | `transit basemap` | Protomaps build (HTTP) | `site/public/data/basemap.pmtiles` |
 | `test` | pytest `pipeline/tests/` | | |
@@ -58,7 +59,7 @@ byte-identical files, so a refactor can be checked with checksums.
   direction).
 - `gen`: `purpose_shares` (NHTS), `dest_groups`, `parcel_units`, `population`, `jobs`, `pois`, `poi_points`, `points` (all
   generators), `snap` (point -> edge), `hex`.
-- `catch`: `reach` (stop × vertex × seconds), `edge_time` (reach stage); `gen_time`, `bands` (catchments stage).
+- `catch`: `reach` (stop × vertex × seconds), `edge_time` (reach stage); `gen_time`, `bands`, `marginal` (catchments stage); `access_times` (stop × hex × minutes per percentile), `access_bands`, `access_rev_bands` (access stage).
 - `valid`: `ridership` (MPO stops matched to platforms), `cluster_ridership`, `special`
   (+ `special_overrides`), `fit_params`, `stop_fit` (observed vs. expected).
 - `export`: views that become tile layers (`walk`, `crossings`, `hex`, `pois`,
@@ -78,6 +79,7 @@ byte-identical files, so a refactor can be checked with checksums.
 | Unit estimates outside Madison | `[generators]` and `40_generators/10_population.sql` |
 | Blob shape | `[catchments]` |
 | Which layers go into which PMTiles | `[tiles.files.*]` |
+| Transit connections (window, percentile, half-life, cap, reverse cell size) | `[access]` (the travel times rerun only when the network, feed, points or window change) |
 | Special stops, half-lives compared in the report | `[ridership]`; one-off fixes in `config/special_stops.csv` (`stop_id,reason,note`; reason `none` clears) |
 
 ## Site outputs (`site/public/data/`)
@@ -86,6 +88,7 @@ byte-identical files, so a refactor can be checked with checksums.
 |---|---|---|
 | `stops.json` | Every merged stop: name, codes, routes, trips/hour (per direction) by period × route, observed/expected riders, special-stop reasons, departures by hour × day type, banded totals per measure; plus routes, measures, settings, sources | `export.stops_json` |
 | `catchments.bin` | Per stop: spiderweb (walk-network edge ids + walk times) and blob (20 cumulative polygons), in one binary file with a JSON index of byte ranges; layout documented at `CATCH_FILE` in export.py | `export.catchments` |
+| `access.bin` | Per stop: transit travel time (minutes, at the score's percentile) to every hex reached within 60 min, for the isochrone; same indexed layout (`_write_indexed`), read by `site/src/lib/access.ts` | `export.access_bin` |
 | `network.pmtiles` | `walk` (edges, feature id = `staging.osm_edges.id`), `crossings` | tippecanoe |
 | `generators.pmtiles` | `hex`, `pois`, `platforms`, `routes` (GTFS shapes run on the representative days) | tippecanoe |
 | `basemap.pmtiles` | Protomaps extract | `pmtiles extract` |

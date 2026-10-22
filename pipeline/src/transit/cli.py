@@ -4,6 +4,7 @@ from typing import Annotated
 
 import typer
 
+from . import access as access_mod
 from . import download as download_mod
 from . import export as export_mod
 from . import fit as fit_mod
@@ -95,10 +96,22 @@ def catchments():
     export_mod.catchments()
 
 
+@app.command("access-bin")
+def access_bin():
+    """Write site/public/data/access.bin (transit travel times per stop, for isochrones)."""
+    export_mod.access_bin()
+
+
 @app.command()
 def basemap():
     """Extract the study-area basemap from the Protomaps build in sources.toml."""
     export_mod.basemap()
+
+
+@app.command()
+def access():
+    """Transit accessibility with R5: catch.access_times, access_bands, access_rev_bands."""
+    access_mod.access()
 
 
 @app.command()

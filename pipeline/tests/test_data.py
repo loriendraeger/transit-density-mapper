@@ -151,3 +151,29 @@ def test_overlap_added_within_full(db):
         "FROM catch.marginal WHERE measure = 'pop' AND full_value > 0",
     )
     assert 0 < median < 0.5
+
+
+def test_transit_access_plausible(db):
+    """From E Washington & North (BRT), tens of thousands of jobs are reachable within
+    30 minutes by transit, more at the planned-trip percentile than at the median, and
+    many residents can get there."""
+    cid = cluster_of(db, "183")
+    jobs = {
+        p: scalar(
+            db,
+            "SELECT sum(value) FROM catch.access_bands "
+            "WHERE cluster_id = %s AND pct = %s AND measure = 'jobs' AND band < 15",
+            cid,
+            p,
+        )
+        for p in (10, 50)
+    }
+    assert 30_000 < jobs[10] < 300_000
+    assert jobs[10] >= jobs[50]
+    homes = scalar(
+        db,
+        "SELECT sum(value) FROM catch.access_rev_bands WHERE cluster_id = %s AND pct = 10 "
+        "AND band < 15",
+        cid,
+    )
+    assert homes > 30_000
