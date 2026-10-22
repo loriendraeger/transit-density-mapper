@@ -266,6 +266,14 @@ exports in EPSG:4326.
   (travel) group: the survey has no airport purpose. The airport's LODES jobs sit at
   block points 1.4–1.7 km away on the airfield side (big-block lumping), so the
   terminal stop shows 0 jobs.
+- **Jobs over buildings: tried and reverted (2026-10-21)**. Spreading each block's jobs
+  (and shop jobs) over its non-residential OSM buildings by floor area (not on
+  residential parcels, ≥ 50 m²; 1,780 of 3,389 job blocks, 11,700 buildings) placed jobs
+  more realistically (airport terminal stop 0 → 225 jobs within 10 min) but didn't help
+  the ridership fit: default CV R² 0.152 → 0.150, best fit 0.188 → 0.178. Owner chose
+  to revert. Building value was ruled out first: Madison's exempt parcels (UW,
+  hospitals, government, the airport) have no assessed improvement value. Blocks over
+  25 ha hold 27 % of jobs.
 - **Shop and clinic jobs** (`gen.points` kind `shopjobs`): retail + health-care jobs per
   block, part of other destinations at `shop_jobs_weight` points per job (fit: 0.022).
 - **Density map layer**: 150 m hexagons of homes (residents), jobs and other destinations
