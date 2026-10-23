@@ -99,6 +99,20 @@ hex_size_m = 150
 # "transit" (too small a sample nationally: ~100 trips).
 purpose_trips = "urban"
 
+# School trips by enrollment (2026-10-23; 35_schools.sql): NCES schools (public and
+# private K-12, colleges) times the NHTS's school trip ends per student, in place of OSM
+# schools as weighted destinations. OSM places of enrollment_category (poi_categories.csv)
+# only locate them: a K-12 school takes the school grounds within school_match_m, a
+# college the campus within college_match_m (else its NCES point). On a campus, the trip
+# ends spread over its buildings by floor area (default_levels when untagged; at least
+# campus_building_min_m2), leaving out homes (residents already count) and
+# campus_skip_buildings.
+enrollment_category = "education"
+school_match_m = 150
+college_match_m = 300
+campus_building_min_m2 = 100
+campus_skip_buildings = ["apartments", "residential", "dormitory", "house", "detached", "semidetached_house", "terrace", "duplex", "bungalow", "garage", "garages", "parking", "carport", "shed", "roof", "greenhouse", "service", "construction", "hut", "kiosk", "stadium", "grandstand", "farm_auxiliary", "barn", "stable"]
+
 [score]
 # Default score settings (the site's "default assumption"; users can change them).
 # 10 min is the usual planning walk to a bus stop; a 4 min half-life leaves about a

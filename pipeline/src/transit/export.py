@@ -123,6 +123,7 @@ def _measures(conn) -> list[dict]:
         {"id": "pop", "kind": "pop", "label": "Homes"},
         {"id": "jobs", "kind": "jobs", "label": "Jobs"},
         {"id": "shopjobs", "kind": "shopjobs", "label": "Retail and health-care jobs"},
+        {"id": "school", "kind": "school", "label": "School trip ends (enrollment)"},
         *(
             {
                 "id": c["category"],
@@ -200,7 +201,8 @@ def stops_json() -> None:
         # 20_overlap.sql), per measure group: decay-weighted full and added totals at the
         # default settings, and residents in reach / who'd walk 2+ minutes more without it.
         for r in conn.execute(
-            "SELECT cluster_id, CASE WHEN measure IN ('pop', 'jobs', 'shopjobs') THEN measure "
+            "SELECT cluster_id, CASE WHEN measure IN ('pop', 'jobs', 'shopjobs', 'school') "
+            "THEN measure "
             "ELSE 'poi' END AS grp, sum(full_value) AS full_value, sum(added) AS added, "
             "sum(in_reach) AS in_reach, sum(coalesce(far_without, 0)) AS far_without "
             "FROM catch.marginal GROUP BY 1, 2"
@@ -286,6 +288,9 @@ def stops_json() -> None:
                     "transit": fit["w_transit"],
                 },
                 "shop_jobs_weight": round(fit["shop_jobs_weight"], 5),
+                # ... + school_weight x school trip ends (35_schools.sql; not fit: 1 / the
+                # potential's trip ends per destination point).
+                "school_weight": round(fit["school_weight"], 6),
                 # Transit connections (access.py, fit.py): stops.json access bands, each
                 # band discounted by 0.5^(t / half-life); jobs and other destinations
                 # mixed at the fitted per-unit weights.
@@ -320,6 +325,10 @@ def stops_json() -> None:
                 "home_rate": round(fit["pot_home_rate"], 4),
                 "work_rate": round(fit["pot_work_rate"], 4),
                 "dest_rate": round(fit["pot_dest_rate"], 3),
+                # School trip ends per student a day (NHTS), applied to NCES enrollment;
+                # the school measure is already in trip ends.
+                "school_k12_rate": round(fit["pot_school_k12_rate"], 3),
+                "school_college_rate": round(fit["pot_school_college_rate"], 3),
                 "r2": round(fit["pot_r2"], 3),
                 "cv_r2": round(fit["pot_cv_r2"], 3),
             },

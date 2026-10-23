@@ -17,6 +17,9 @@ SELECT row_number() OVER ()::int AS id, g.geom,
        coalesce((SELECT sum(pop::numeric) FROM gen.population p WHERE ST_Intersects(g.geom, p.geom)), 0)::float8 AS pop,
        coalesce((SELECT sum(jobs::numeric) FROM gen.jobs j WHERE ST_Intersects(g.geom, j.geom)), 0)::float8 AS jobs,
        coalesce((SELECT sum(shop_jobs::numeric) FROM gen.jobs j WHERE ST_Intersects(g.geom, j.geom)), 0)::float8 AS shop_jobs,
+       -- School trip ends a day, at one point per generator (a campus building, the
+       -- school grounds, or the NCES point).
+       coalesce((SELECT sum(value::numeric) FROM gen.school_points s WHERE s.main AND ST_Intersects(g.geom, s.geom)), 0)::float8 AS school,
        0::float8 AS dest
 FROM grid g;
 CREATE INDEX ON gen.hex USING gist (geom);
@@ -31,7 +34,7 @@ WHERE p.area_m2 > 0;
 UPDATE gen.hex h SET dest = d.w
 FROM (SELECT hex_id, sum(weight::numeric)::float8 AS w FROM gen.poi_hex GROUP BY hex_id) d
 WHERE d.hex_id = h.id;
-DELETE FROM gen.hex WHERE pop = 0 AND jobs = 0 AND dest < 0.01;
+DELETE FROM gen.hex WHERE pop = 0 AND jobs = 0 AND dest < 0.01 AND school = 0;
 ALTER TABLE gen.hex ADD COLUMN area_km2 float8;
 UPDATE gen.hex SET area_km2 = ST_Area(geom) / 1e6;
 

@@ -16,13 +16,13 @@ auto AS (
     SELECT c.cluster_id, 'school' AS reason FROM transit.clusters c
     WHERE c.name ~* '\m(high|middle)( school)?$'
        OR EXISTS (
-        SELECT 1 FROM gen.pois p
+        SELECT 1 FROM gen.edu_places p
         WHERE p.kind = 'school' AND p.name ~* '\m(high|middle)\M'
           AND ST_DWithin(p.geom, c.geom, :special_school_m))
     UNION ALL
     SELECT c.cluster_id, 'campus' FROM transit.clusters c
     WHERE EXISTS (
-        SELECT 1 FROM gen.pois p
+        SELECT 1 FROM gen.edu_places p
         WHERE p.kind IN ('university', 'college') AND ST_Intersects(p.geom, c.geom))
     UNION ALL
     SELECT c.cluster_id, 'park_ride' FROM transit.clusters c

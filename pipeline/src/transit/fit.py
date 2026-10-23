@@ -43,7 +43,9 @@ from scipy.stats import spearmanr
 from . import config
 
 OUT = config.BUILD / "validation" / "ridership.md"
-COMPONENTS = ("pop", "jobs", "osm", "shopjobs")
+# Catchment measures loaded per band. school = school trip ends a day (enrollment x
+# NHTS rate, 35_schools.sql); components() folds it into osm as destination points.
+COMPONENTS = ("pop", "jobs", "osm", "shopjobs", "school")
 ACCESS_MEASURES = ("jobs", "osm", "shopjobs")
 # Boardings are weekday averages, so frequency is the weekday mix.
 WEEKDAY_PERIODS = ("peak", "offpeak")
@@ -134,6 +136,7 @@ def load() -> dict:
         "match": match,
         "rates": rates,
         "totals": totals,
+        "school_pts": 0.0,
         "unmatched_top": unmatched_top,
         "fit_min_freq": p["ridership"]["fit_min_freq"],
         "hl_range": p["ridership"]["fit_half_life_range"],
@@ -174,9 +177,20 @@ def access_terms(d: dict, pct: int, half_life: float, k_shop: float) -> np.ndarr
 
 
 def components(d: dict, walk_min: float, half_life: float) -> np.ndarray:
-    """Decay-weighted catchment totals, [stop, component]."""
+    """Decay-weighted catchment totals, [stop, (pop, jobs, osm, shopjobs)]. School trip
+    ends count as destination points at d["school_pts"] points each (school_scale)."""
     bw = band_weights(d["bands"].shape[1], d["band_min"], walk_min, half_life)
-    return np.einsum("nbk,b->nk", d["bands"], bw)
+    x = np.einsum("nbk,b->nk", d["bands"], bw)
+    return np.column_stack([x[:, 0], x[:, 1], x[:, 2] + d["school_pts"] * x[:, 4], x[:, 3]])
+
+
+def school_scale(d: dict, k_shop: float) -> float:
+    """Destination points per school trip end: 1 / the potential's trip ends per point
+    (destinations balanced to residents), so a school trip end weighs the same as any
+    other destination trip end in both models. Not fit: stops near schools and on campus
+    are special and stay out of the fit, so it couldn't learn the weight."""
+    tot = d["totals"]
+    return (tot["poi"] + k_shop * tot["shopjobs"]) / (d["rates"]["dest_per_person"] * tot["pop"])
 
 
 def fit_log(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, float]:
@@ -225,7 +239,15 @@ def fit_model(d: dict) -> dict:
         params, r2 = fit_log(x_all[in_fit] / scale, y)
         return {"x": x_all, "scale": scale, "params": params, "r2": r2}
 
-    m = at(d["half_life"])
+    # Points per school trip end depend on the points per shop job the fit finds, and the
+    # fit sees school ends through them: iterate to the fixed point (a few rounds).
+    for _ in range(50):
+        m = at(d["half_life"])
+        w = m["params"][1:] / m["scale"]
+        s_new = school_scale(d, w[3] / max(w[2], 1e-12))
+        if abs(s_new - d["school_pts"]) <= 1e-9 * s_new:
+            break
+        d["school_pts"] = s_new
     x_all, scale, params = m["x"], m["scale"], m["params"]
     b0, w = params[0], params[1:] / scale  # weights per raw unit
     expected = freq * (b0 + x_all @ w)
@@ -309,8 +331,11 @@ def fit_model(d: dict) -> dict:
         "r2": fit_log(xp[in_fit], y)[1],
         "cv_r2": cv_r2(xp[in_fit], y),
         # Study-area trip ends by kind (all modes, per day), for the report.
-        "area_ends": pot_rates
-        * np.array([tot["pop"], tot["jobs"], tot["poi"] + k_shop * tot["shopjobs"]]),
+        # (homes, jobs, other destinations, of which schools)
+        "area_ends": np.append(
+            pot_rates * np.array([tot["pop"], tot["jobs"], tot["poi"] + k_shop * tot["shopjobs"]]),
+            tot.get("school", 0.0),
+        ),
     }
 
     return {
@@ -362,6 +387,9 @@ def write_db(d: dict, m: dict) -> None:
         "pot_dest_rate": m["potential"]["rates"][2],
         "pot_r2": m["potential"]["r2"],
         "pot_cv_r2": m["potential"]["cv_r2"],
+        "school_weight": d["school_pts"],
+        "pot_school_k12_rate": d["rates"]["school_per_k12_student"],
+        "pot_school_college_rate": d["rates"]["school_per_college_student"],
     }
     with psycopg.connect("") as conn:
         conn.execute("DROP TABLE IF EXISTS valid.fit_params")
@@ -430,7 +458,7 @@ def report(d: dict, m: dict) -> str:
         f"- Default sliders (0–{SLIDER_MAX}): homes {sw[0]:g}, jobs {sw[1]:g}, other "
         f"destinations {sw[2]:g}, transit connections {sw[3]:g}.",
         f"- Other destinations = OSM destination points + {m['k_shop']:.3f} × retail and "
-        "health-care jobs.",
+        f"health-care jobs + {d['school_pts']:.4f} × school trip ends (not fit).",
         f"- Transit connections ([access]: {ac['access_percentile']}th percentile, "
         f"{ac['access_half_life_min']} min half-life, {ac['access_max_minutes']} "
         f"min cap) = {m['c_acc'][0]:.2f} × jobs + {m['c_acc'][1]:.2f} × other destinations "
@@ -465,9 +493,13 @@ def report(d: dict, m: dict) -> str:
         f"- Trip ends a day within the default walk = residents × {pr[0]:.2f} (home ends per "
         f"person, visits included) + jobs × {pr[1]:.2f} (work ends per worker) + destination "
         f"points × {pr[2]:.1f} (balanced so the study area's destinations draw "
-        f"{d['rates']['dest_per_person']:.2f} ends per resident). NHTS 2022, urban.",
+        f"{d['rates']['dest_per_person']:.2f} ends per resident) + school trip ends (NCES "
+        f"enrollment × {d['rates']['school_per_k12_student']:.2f} per K-12 student, × "
+        f"{d['rates']['school_per_college_student']:.2f} per college student; "
+        f"{d['school_pts']:.4f} destination points each in the tuned score). NHTS 2022, urban.",
         f"- Study area, trip ends a day: homes {ae[0]:,.0f}, jobs {ae[1]:,.0f}, destinations "
-        f"{ae[2]:,.0f} ({', '.join(f'{100 * v / ae.sum():.0f} %' for v in ae)}).",
+        f"{ae[2]:,.0f}, schools {ae[3]:,.0f} "
+        f"({', '.join(f'{100 * v / ae.sum():.0f} %' for v in ae)}).",
         f"- As a predictor of boardings per trip/h (one term, log scale): R² "
         f"{pot['r2']:.3f}, cross-validated {pot['cv_r2']:.3f}, vs. {m['walk_only']['cv_r2']:.3f} "
         "for the fitted walk catchment alone. A check, not the target: potential counts "

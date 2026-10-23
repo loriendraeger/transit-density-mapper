@@ -4,8 +4,8 @@ whyto,label,group,trip_end
 03,Work at a non-home location,,work
 04,Work activity to drop-off/pickup someone/something,,work
 05,Other work-related activities,,work
-06,Attend school as a student,education,destination
-07,Attend childcare or adult care,education,destination
+06,Attend school as a student,,school
+07,Attend childcare or adult care,childcare,destination
 08,Volunteer activities (not paid),civic,destination
 09,Change type of transportation,,
 10,Drop off/pick up someone (personal),,

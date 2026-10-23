@@ -144,6 +144,26 @@ def test_potential_rates_plausible(db):
     assert dest_ends == pytest.approx(r["dest_per_person"] * tot["pop"], rel=1e-9)
 
 
+def test_school_trip_ends_follow_enrollment(db):
+    """Every school's trip ends are counted once in full (its main points add up to
+    enrollment x rate), and UW-Madison's spread over many campus buildings."""
+    worst = scalar(
+        db,
+        """
+        SELECT max(abs(p.v - s.trip_ends) / s.trip_ends)
+        FROM gen.schools s
+        JOIN (SELECT school_id, sum(value) AS v FROM gen.school_points WHERE main
+              GROUP BY 1) p ON p.school_id = s.id
+        """,
+    )
+    assert worst < 1e-9
+    assert scalar(db, "SELECT count(*) FROM gen.schools WHERE id = 'ipeds240444'") == 1
+    buildings = scalar(
+        db, "SELECT count(*) FROM gen.campus_buildings WHERE school_id = 'ipeds240444'"
+    )
+    assert buildings > 50
+
+
 def test_destination_totals_follow_trip_shares(db):
     """Each destination group's total weight matches its share of trips (NHTS)."""
     worst = scalar(

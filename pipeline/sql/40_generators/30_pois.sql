@@ -66,6 +66,16 @@ WHERE p.category = q.category
   AND q.geom && p.geom
   AND ST_Contains(q.geom, ST_PointOnSurface(p.geom));
 
+-- Schools and colleges count by enrollment (35_schools.sql), not as weighted
+-- destinations: their OSM places move to gen.edu_places, where they locate the NCES
+-- schools (and mark school and campus stops, 70_validation/20_special.sql).
+DROP TABLE IF EXISTS gen.edu_places CASCADE;
+CREATE TABLE gen.edu_places AS
+SELECT * FROM gen.pois WHERE category = :'enrollment_category';
+ALTER TABLE gen.edu_places ADD PRIMARY KEY (id);
+CREATE INDEX ON gen.edu_places USING gist (geom);
+DELETE FROM gen.pois WHERE category = :'enrollment_category';
+
 -- Destination totals by trip purpose: each group of categories gets the share of trips
 -- made for its purpose (gen.purpose_shares, from the NHTS by `transit purposes`), while
 -- the overall total stays the same. Within a group, the poi_categories.csv weights (and

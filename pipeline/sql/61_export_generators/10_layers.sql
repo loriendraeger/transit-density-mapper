@@ -6,11 +6,13 @@
 
 DROP VIEW IF EXISTS export.hex, export.hex_parts;
 -- d_<category>: destination points per km2 by category (gen.hex_dest); the site sums
--- them, plus shop_jobs_km2 times the fitted points per shop job (stops.json settings).
+-- them, plus shop_jobs_km2 times the fitted points per shop job and school_km2 (school
+-- trip ends a day per km2) times the points per school trip end (stops.json settings).
 CREATE OR REPLACE VIEW export.hex AS
 SELECT h.id, round(h.pop)::int AS pop, round(h.jobs)::int AS jobs,
        round(h.pop / h.area_km2)::int AS pop_km2, round(h.jobs / h.area_km2)::int AS jobs_km2,
        round(h.shop_jobs / h.area_km2)::int AS shop_jobs_km2,
+       round(h.school / h.area_km2)::int AS school_km2,
        d.*,
        ST_Transform(h.geom, 4326)::geometry(Polygon, 4326) AS geom
 FROM gen.hex h JOIN gen.hex_dest d ON d.hex_id = h.id
@@ -22,6 +24,7 @@ CREATE OR REPLACE VIEW export.hex_parts AS
 SELECT row_number() OVER (ORDER BY p.hex_id, p.split, p.slot)::int AS id, p.split, p.slot,
        round(h.pop / h.area_km2)::int AS pop_km2, round(h.jobs / h.area_km2)::int AS jobs_km2,
        round(h.shop_jobs / h.area_km2)::int AS shop_jobs_km2,
+       round(h.school / h.area_km2)::int AS school_km2,
        d.*,
        ST_Transform(p.geom, 4326)::geometry(Polygon, 4326) AS geom
 FROM gen.hex_parts p JOIN gen.hex h ON h.id = p.hex_id JOIN gen.hex_dest d ON d.hex_id = h.id

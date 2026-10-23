@@ -12,7 +12,10 @@ UNION ALL
 SELECT 'shopjobs', 's' || geoid, NULL, shop_jobs, geom FROM gen.jobs WHERE shop_jobs > 0
 UNION ALL
 SELECT 'poi', pp.poi_id, p.category, p.weight, pp.geom
-FROM gen.poi_points pp JOIN gen.pois p ON p.id = pp.poi_id;
+FROM gen.poi_points pp JOIN gen.pois p ON p.id = pp.poi_id
+UNION ALL
+-- School trip ends a day (35_schools.sql).
+SELECT 'school', gen_id, NULL, value, geom FROM gen.school_points;
 ALTER TABLE gen.points ADD COLUMN pid serial PRIMARY KEY;
 
 DROP TABLE IF EXISTS gen.snap;

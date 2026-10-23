@@ -13,7 +13,9 @@ site/src/lib/scoring.ts): every trip has two ends, each at a place of some kind
 (WHYFROM, WHYTO; trip_purposes.csv `trip_end`: home, work, destination, or blank when
 the end can't be placed, e.g. changing mode). Ends per resident and day are weighted
 trip ends (WTTRDFIN is annual, so / 365) over weighted persons (WTPERFIN, person file);
-work ends are also given per worker (WORKER = 01), which the potential applies per job.
+work ends are also given per worker (WORKER = 01), which the potential applies per job,
+and school ends per K-12 and per college student (SCHOOL1 = 01; STUDE 01 = K-12, 02-05 =
+college), which 40_generators/35_schools.sql applies to NCES enrollment.
 -> gen.trip_rates (key, value).
 """
 
@@ -26,6 +28,9 @@ from . import config
 
 # Trip-end rates count trips and persons in urban areas, like the shares' default.
 URBAN = "01"
+
+# NHTS person STUDE (enrolled in) -> school level, for school trip ends per student.
+STUDENT_LEVEL = {"01": "k12", "02": "college", "03": "college", "04": "college", "05": "college"}
 
 # pipeline.toml [generators] purpose_trips -> which trips count.
 FILTERS = {
@@ -46,6 +51,22 @@ def purposes() -> None:
     trips: dict[str, int] = defaultdict(int)
     ends: dict[str, float] = defaultdict(float)  # weighted trip ends per day, urban
     path = config.REPO / config.sources()["nhts"]["local_path"]
+    # Persons first: who's a worker or a student (by school level), weighted.
+    persons = workers = 0.0
+    student_of: dict[tuple[str, str], str] = {}
+    students: dict[str, float] = defaultdict(float)
+    with open(path.with_name("perv2pub.csv"), newline="") as f:
+        for r in csv.DictReader(f):
+            if r["URBAN"] != URBAN:
+                continue
+            w = float(r["WTPERFIN"])
+            persons += w
+            workers += w if r["WORKER"] == "01" else 0.0
+            level = STUDENT_LEVEL.get(r["STUDE"]) if r["SCHOOL1"] == "01" else None
+            if level:
+                student_of[(r["HOUSEID"], r["PERSONID"])] = level
+                students[level] += w
+    school_ends: dict[str, float] = defaultdict(float)
     with open(path, newline="") as f:
         for r in csv.DictReader(f):
             group = group_of.get(r["WHYTO"])
@@ -54,19 +75,20 @@ def purposes() -> None:
                 trips[group] += 1
             if r["URBAN"] == URBAN:
                 for why in (r["WHYFROM"], r["WHYTO"]):
-                    ends[end_of.get(why, "unplaced")] += float(r["WTTRDFIN"]) / 365
+                    end = end_of.get(why, "unplaced")
+                    ends[end] += float(r["WTTRDFIN"]) / 365
+                    if end == "school":
+                        level = student_of.get((r["HOUSEID"], r["PERSONID"]), "other")
+                        school_ends[level] += float(r["WTTRDFIN"]) / 365
     total = sum(weight.values())
-    persons = workers = 0.0
-    with open(path.with_name("perv2pub.csv"), newline="") as f:
-        for r in csv.DictReader(f):
-            if r["URBAN"] == URBAN:
-                persons += float(r["WTPERFIN"])
-                workers += float(r["WTPERFIN"]) if r["WORKER"] == "01" else 0.0
     rates = {
         "home_per_person": ends["home"] / persons,
         "work_per_person": ends["work"] / persons,
         "work_per_worker": ends["work"] / workers,
         "dest_per_person": ends["destination"] / persons,
+        "school_per_person": ends["school"] / persons,
+        "school_per_k12_student": school_ends["k12"] / students["k12"],
+        "school_per_college_student": school_ends["college"] / students["college"],
         "unplaced_per_person": ends["unplaced"] / persons,
     }
     with psycopg.connect("") as conn:
@@ -87,4 +109,4 @@ def purposes() -> None:
         print(f"  {g:10} {100 * weight[g] / total:5.1f} %  ({trips[g]} trips)")
     print("trip ends per person and day (urban):")
     for k, v in rates.items():
-        print(f"  {k:20} {v:.3f}")
+        print(f"  {k:26} {v:.3f}")
