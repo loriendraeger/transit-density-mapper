@@ -560,9 +560,13 @@ table.stops tbody tr.selected {
     flex-direction: column;
     overflow-y: auto;
   }
+  /* Stacked: each panel at its full height, the view scrolls (not the phone map's
+     45 % panel, which would squeeze the settings to a sliver). */
   .stops-view .panel,
   .detail-col {
+    flex: none;
     width: 100%;
+    overflow-y: visible;
     border: 0;
     border-bottom: 1px solid var(--hairline);
   }
