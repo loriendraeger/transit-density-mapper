@@ -191,7 +191,12 @@ export default function StopTable(props: {
               >
                 <For each={row.getAllCells()}>
                   {(cell) => (
-                    <td classList={{ num: !TEXT_COLUMNS.has(cell.column.id) }}>
+                    <td
+                      classList={{
+                        num: !TEXT_COLUMNS.has(cell.column.id),
+                        routes: cell.column.id === 'routes',
+                      }}
+                    >
                       <table.FlexRender cell={cell} />
                     </td>
                   )}

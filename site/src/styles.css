@@ -537,6 +537,11 @@ table.stops td {
   border-bottom: 1px solid var(--hairline);
   vertical-align: top;
 }
+/* Two route chips side by side (a two-character chip is ~28 px, gap 4 px). */
+table.stops td.routes .chips {
+  width: 62px;
+  margin-top: 0;
+}
 table.stops tbody tr {
   cursor: pointer;
 }
