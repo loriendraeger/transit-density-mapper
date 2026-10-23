@@ -128,8 +128,8 @@ A **for-fun learning project**. The owner is interested in GIS and transit.
 ## Data sources
 
 URLs, layers, fields, licenses and recon findings live in `config/sources.toml`.
-`transit download` fetches everything except the statewide parcels (manual; copy from
-`../public-private-shore/data/raw/parcels/`).
+`transit download` (`make download`) fetches everything, including the Dane County
+parcels from the SCO's per-county downloads (since 2026-10-23; before, a manual copy).
 
 | Source | Used for |
 |---|---|

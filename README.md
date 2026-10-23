@@ -22,7 +22,7 @@ Needs Docker and Node 24.
 
 ```sh
 cp .env.example .env
-make download        # everything but the statewide parcels (see config/sources.toml)
+make download        # every source in config/sources.toml
 make all             # load -> network -> stops -> generators -> catchments -> export
 make basemap         # Protomaps extract for the map background
 make test            # data checks

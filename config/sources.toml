@@ -149,8 +149,9 @@ TotalLivingArea, YearBuilt.
 [parcels]
 name = "Wisconsin Statewide Parcel Map V12 (Dane County extract)"
 publisher = "WI State Cartographer's Office / Dept. of Administration"
-url = "https://www.sco.wisc.edu/parcels/data-county/#v1200"
-fetch = "manual"
+url = "https://web.s3.wisc.edu/parcels/v12_parcels/county/V1200_Wisconsin_Parcels_DANE_GDB.zip"
+landing = "https://www.sco.wisc.edu/parcels/data-county/#v1200"
+fetch = "zip"
 local_path = "data/raw/parcels/V1200_Wisconsin_Parcels_DANE.gdb"
 format = "gdb"
 layer = "V1200_Wisconsin_Parcels_DANE"
@@ -161,8 +162,9 @@ attribution = "Wisconsin Statewide Parcel Map Initiative (V12), WI DOA / State C
 retrieved = "2026-10-16"
 verified = true
 notes = """
-Manual download (county file from the SCO page), or copy from
-../public-private-shore/data/raw/parcels/. Used outside the City of Madison only.
+The county file from the SCO's per-county list (links_v1200.csv behind the landing
+page; 45 MB zip, verified identical to the copy from ../public-private-shore on
+2026-10-23). Used outside the City of Madison only.
 No dwelling-unit field: there, a block's 2020 housing units are split among its
 residential parcels in proportion to improvement value (IMPVALUE). PROPCLASS
 1 = residential, 2 = commercial (includes apartment buildings of 4+ units in WI).
