@@ -1,20 +1,6 @@
-# Madison Metro stop catchments
+# Madison Metro Stop Catchments
 
-Who lives and works within a short walk of each Madison Metro bus stop, what there is
-to walk to, and how often the bus comes. A static site (map + stop table) built from
-public data by a local PostGIS/pgRouting pipeline.
-
-- **Map:** population or job density, stops colored by potential and sized by
-  frequency; click a stop for its walkshed (a spiderweb of walkable paths and a blob that
-  fades with walking time). Walks can only cross arterials at signals or marked
-  crosswalks, and pay the expected wait.
-- **Stop analysis:** every stop (merged where platforms share a corner), with scores,
-  trips per hour by period and route, and departures by hour.
-- **Two scores:** *potential* (the default), trip ends a day by every mode within a
-  short walk, from national travel-survey rates, irrespective of how people travel
-  today; and a score *tuned to today's riders*, with weights fit to stop boardings.
-- Walk-time limit, half-life, service period and (for the tuned score) weights are
-  adjustable.
+This was vibe coded over a few days. Quality and utility are dubious.
 
 ## Quickstart
 
