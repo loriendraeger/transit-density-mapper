@@ -2,6 +2,7 @@ import { For, type JSX, Show } from 'solid-js'
 
 import { hoursLabel, PERIOD_LABELS } from '../components/Settings'
 import { PERIODS } from '../lib/contract'
+import { fmt } from '../lib/units'
 import { data } from '../state/store'
 
 const PURPOSE_LABELS: Record<string, string> = {
@@ -120,19 +121,44 @@ export default function About(): JSX.Element {
       <h2>Score</h2>
       <Show when={data()}>
         {(d) => (
-          <p>
-            Four components. Homes, jobs and other destinations are each summed over everything
-            within the walk limit (by default {d().settings.score.walk_min} minutes), each counted
-            less the farther it is (its weight halves every half-life, by default{' '}
-            {d().settings.score.half_life_min} minutes). Transit connections count what riding from
-            the stop reaches (below). Each component is scaled 0–100 against the best stop, and the
-            score is their weighted average; the default weights (homes{' '}
-            {d().settings.score.weights.pop}, jobs {d().settings.score.weights.jobs}, other
-            destinations {d().settings.score.weights.dest}, transit connections{' '}
-            {d().settings.score.weights.transit}) are fit to ridership, below. People and places
-            within reach of several stops count for each of them, so scores compare stops' potential
-            rather than counting riders.
-          </p>
+          <>
+            <p>
+              Two models, switched in the settings. Both sum homes, jobs and other destinations
+              within the walk limit (by default {d().settings.score.walk_min} minutes), each counted
+              less the farther it is (its weight halves every half-life, by default{' '}
+              {d().settings.score.half_life_min} minutes).
+            </p>
+            <p>
+              <strong>Potential (all modes)</strong>, the default, counts the trips a stop could
+              serve: <em>trip ends</em> a day by every mode, from the 2022 National Household Travel
+              Survey (urban areas). Every trip starts and ends somewhere; per resident and day,
+              Americans in urban areas make {fmt(d().settings.potential.home_rate, 2)} trip ends at
+              home (visits to friends included), and per worker{' '}
+              {fmt(d().settings.potential.work_rate, 2)} at work. Destination points are scaled so
+              the study area's destinations draw as many trips as its residents make to destinations
+              (about {fmt(d().settings.potential.dest_rate, 0)} trip ends a day per point). Nothing
+              here is fit to bus riders: a dense place where everyone drives counts as fully as one
+              where everyone rides, because it's an opportunity for transit, not a lost cause. The
+              result is in real units, trip ends a day, so it doesn't move with the best stop.
+              People and places within reach of several stops count for each of them, so stops'
+              totals overlap. Transit connections and frequency are shown next to it but kept out:
+              potential describes the place, not today's service. <strong>Potential per bus</strong>{' '}
+              (a stop color and table column) divides it by weekday departures per direction,
+              against the median stop: high where many trips are nearby for the service the stop
+              gets.
+            </p>
+            <p>
+              <strong>Tuned to today's riders</strong> adds a fourth component, transit connections
+              (what riding from the stop reaches; below), scales each component 0–100 against the
+              best stop and takes their weighted average. Its default weights (homes{' '}
+              {d().settings.score.weights.pop}, jobs {d().settings.score.weights.jobs}, other
+              destinations {d().settings.score.weights.dest}, transit connections{' '}
+              {d().settings.score.weights.transit}) are fit to ridership (below), so they learn
+              where today's riders come from under today's network and car ownership: places where
+              most people drive count less. It's the better predictor of boardings, and the basis of
+              riders vs. expected.
+            </p>
+          </>
         )}
       </Show>
 
@@ -198,6 +224,17 @@ export default function About(): JSX.Element {
               halving every 4 minutes) follows planning convention; the data favor shorter walks,
               which the <em>Best fit</em> button applies with weights refit for it.
             </p>
+            <Show when={data()?.settings.potential}>
+              {(p) => (
+                <p>
+                  The potential model isn't fit, but it's checked the same way: as the only term, it
+                  explains {Math.round(p().cv_r2 * 100)} % of the variation in boardings per trip
+                  (cross-validated), close to the {Math.round(f().walk_only_cv_r2 * 100)} % of the
+                  fitted walk catchment without transit connections. Counting trips by every mode
+                  loses little in predicting today's riders.
+                </p>
+              )}
+            </Show>
             <p>
               <strong>Riders vs. expected</strong> (a stop color option) divides each stop's
               boardings by the fit's expectation from its catchment, transit connections and
