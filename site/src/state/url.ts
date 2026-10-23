@@ -9,7 +9,9 @@ import {
   densities,
   flyTo,
   halfLife,
+  mapView,
   model,
+  parseView,
   period,
   selectedId,
   setDensities,
@@ -20,6 +22,7 @@ import {
   setShowTransitReach,
   setStopColor,
   setView,
+  setViewRequest,
   setWalkMin,
   setWeights,
   showTransitReach,
@@ -43,6 +46,8 @@ import {
 //   density=pop,jobs,dest | none   hex layers shown (default: pop)
 //   color=freq|perbus|transit|riders|adds   what stops are colored by (default: score)
 //   reach=1                   the selected stop's transit reach layer on
+//   view=14.5/43.07541/-89.40410   map zoom/lat/lon (written as the map moves; a link
+//                             with it opens there instead of framing the selected stop)
 
 type Params = Record<string, string | undefined>
 
@@ -84,9 +89,13 @@ function applyParams(p: Params): void {
   const stop = want
     ? (d.stops.find((s) => s.id === want || s.stop_ids.includes(want))?.id ?? null)
     : null
+  const view = parseView(p.view)
+  if (view && p.view !== mapView()) {
+    setViewRequest(view)
+  }
   if (stop !== selectedId()) {
     setSelectedId(stop)
-    if (stop) {
+    if (stop && !view) {
       flyTo(stop)
     }
   }
@@ -118,6 +127,7 @@ export function currentParams(): Params {
     density: densityParam(),
     color: stopColor() === 'score' ? undefined : stopColor(),
     reach: showTransitReach() ? '1' : undefined,
+    view: mapView() ?? undefined,
   }
 }
 
@@ -129,7 +139,8 @@ export function pathFor(v: View, overrides: Params = {}): string {
       q.set(k, val)
     }
   }
-  const s = q.toString()
+  // '/' and ',' are legal in a query; unescaped, view=14.5/43.07/-89.4 stays readable.
+  const s = q.toString().replaceAll('%2F', '/').replaceAll('%2C', ',')
   return `/${v}${s ? `?${s}` : ''}`
 }
 

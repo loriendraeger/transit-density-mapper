@@ -587,6 +587,12 @@ table.stops tbody tr.selected {
   font-size: 13px;
   padding: 8px 10px;
 }
+.maplibregl-popup-content .chips {
+  display: inline;
+}
+.maplibregl-popup-content .chip {
+  margin: 1px 3px 1px 0;
+}
 .maplibregl-popup-tip {
   border-top-color: var(--surface) !important;
   border-bottom-color: var(--surface) !important;

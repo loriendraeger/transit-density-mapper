@@ -55,6 +55,7 @@ import {
   scored,
   scoredById,
   selectedId,
+  setMapView,
   setSelectedId,
   showCrossings,
   showPois,
@@ -63,6 +64,7 @@ import {
   showTransitReach,
   stopColor,
   transitReachActive,
+  viewRequest,
   walkMin,
 } from '../state/store'
 import {
@@ -429,7 +431,31 @@ export default function MapView(): JSX.Element {
     })
 
     // Interaction: click a stop to select it; click elsewhere to clear.
-    const popup = new Popup({ closeButton: false, closeOnClick: false, offset: 10 })
+    const popup = new Popup({
+      closeButton: false,
+      closeOnClick: false,
+      offset: 10,
+      maxWidth: '340px',
+    })
+    /** "Stop 0039, 0068 · [28] [A]": the stop numbers and route chips in Metro's colors. */
+    function stopLine(id: string): string {
+      const d = untrack(data)
+      const stop = untrack(scoredById).get(id)?.stop
+      if (!d || !stop) {
+        return ''
+      }
+      const routes = new Map(d.routes.map((r) => [r.id, r]))
+      function hex(c: string | undefined, dflt: string): string {
+        return c && /^[0-9a-fA-F]{6}$/.test(c) ? c : dflt
+      }
+      const chips = stop.routes
+        .map((rid) => {
+          const r = routes.get(rid)
+          return `<span class="chip" style="background:#${hex(r?.color, '888888')};color:#${hex(r?.text_color, 'ffffff')}">${escapeHtml(r?.name ?? rid)}</span>`
+        })
+        .join('')
+      return `Stop ${escapeHtml(stop.codes.join(', '))}${chips ? ` · <span class="chips">${chips}</span>` : ''}`
+    }
     m.on('mousemove', 'stops', (e) => {
       const f = e.features?.[0]
       if (!f) {
@@ -444,7 +470,7 @@ export default function MapView(): JSX.Element {
       popup
         .setLngLat(geom.coordinates as [number, number])
         .setHTML(
-          `<strong>${escapeHtml(p.name)}</strong><br>${untrack(model) === 'potential' ? `${fmt(p.score, 0)} trip ends/day` : `Score ${fmt(p.score, 0)}`} · ${fmt(p.freq, 1)} trips/h` +
+          `<strong>${escapeHtml(p.name)}</strong><br>${stopLine(p.id)}<br>${untrack(model) === 'potential' ? `${fmt(p.score, 0)} trip ends/day` : `Score ${fmt(p.score, 0)}`} · ${fmt(p.freq, 1)} trips/h` +
             (p.has_riders
               ? `<br>${fmt(p.observed, 0)} riders/weekday · ${fmt(p.expected, 0)} expected`
               : ''),
@@ -538,10 +564,26 @@ export default function MapView(): JSX.Element {
       }
     })
 
-    // Fit the stops once they arrive (unless a stop is selected: the fly handles that).
+    // The view goes into the URL (view=zoom/lat/lon) after every move; a requested view
+    // (a link, back/forward) jumps there.
+    function writeView(): void {
+      const c = m.getCenter()
+      setMapView(`${m.getZoom().toFixed(2)}/${c.lat.toFixed(5)}/${c.lng.toFixed(5)}`)
+    }
+    m.on('moveend', writeView)
+    createEffect(
+      on(viewRequest, (v) => {
+        if (v) {
+          m.jumpTo({ center: [v.lon, v.lat], zoom: v.zoom })
+        }
+      }),
+    )
+
+    // Fit the stops once they arrive (unless a stop is selected: the fly handles that; or
+    // the URL gave a view).
     createEffect(
       on(data, (d) => {
-        if (!d || selectedId()) {
+        if (!d || selectedId() || untrack(viewRequest)) {
           return
         }
         const lons = d.stops.map((s) => s.lon)

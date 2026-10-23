@@ -187,6 +187,29 @@ export const [blobOpacity, setBlobOpacity] = createSignal(0.5)
 export type StopColor = 'score' | 'freq' | 'transit' | 'riders' | 'adds' | 'perbus'
 export const [stopColor, setStopColor] = createSignal<StopColor>('score')
 
+/** The map's view as "zoom/lat/lon" (written on every move; in the URL as view=). */
+export const [mapView, setMapView] = createSignal<string | null>(null)
+/** A view to jump to (from the URL, on load or back/forward). */
+export const [viewRequest, setViewRequest] = createSignal<{
+  zoom: number
+  lat: number
+  lon: number
+} | null>(null)
+
+/** "14.5/43.07541/-89.40410" -> its parts, or null if it doesn't parse. */
+export function parseView(
+  s: string | undefined,
+): { zoom: number; lat: number; lon: number } | null {
+  const parts = (s ?? '').split('/').map(Number)
+  if (parts.length !== 3 || !parts.every(Number.isFinite)) {
+    return null
+  }
+  const [zoom, lat, lon] = parts as [number, number, number]
+  return Math.abs(lat) <= 90 && Math.abs(lon) <= 180
+    ? { zoom: Math.min(22, Math.max(0, zoom)), lat, lon }
+    : null
+}
+
 /** Ask the map to fly to a stop (from the table or the URL). */
 export const [flyRequest, setFlyRequest] = createSignal<{ id: string; n: number } | null>(null)
 let flyN = 0

@@ -371,7 +371,10 @@ exports in EPSG:4326.
   `activePreset()` in `state/store.ts`); period weights are read-only. Riders vs.
   expected always uses the default assumption's fit.
 - **About tab**: methodology and sources.
-- Settings live in the URL (`state/url.ts`); `?stop=` accepts a merged-stop id or any
+- Settings live in the URL (`state/url.ts`; defaults omitted): score model, walk,
+  weights, period, hex layers, stop color (`color=`), transit reach (`reach=1`) and the
+  map view (`view=zoom/lat/lon`, written after every move; a link with it opens there
+  instead of framing the selected stop). `?stop=` accepts a merged-stop id or any
   platform's GTFS stop id.
 - Colors (`map/colors.ts`, checked with the dataviz validator, light and dark): orange
   for scores; blue, green, yellow for the three generators; violet for catchments;
