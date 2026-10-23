@@ -99,6 +99,7 @@ A **for-fun learning project**. The owner is interested in GIS and transit.
 | Map behavior (2026-10-21) | Hex opacity doesn't change when a stop is selected. Opening/closing the drawer keeps the map's top-left corner fixed (a `resize` handler pans back MapLibre's keep-the-center resize) and pans only if the selected stop would be hidden. |
 | Calibration (2026-10-20; revised 2026-10-21, 2026-10-22) | Fit the score's weights to **observed boardings per trip** (MPO, Feb 2024) at the fixed walk/decay; the fit is the default of the **tuned** model (since 2026-10-22 the site's default is the potential model, below). Special stops (schools, campus, park-and-rides, airport, transfer points) found from **OSM + stop names**, left out of the fit. Leftovers shown as a **"Riders vs. expected" stop color** (owner's picks among options). |
 | Potential model (2026-10-22) | Addresses the critique's tension between the mode-neutral goal and weights fit to today's riders (which discount places where people drive). **Two models, potential the default**; "Tuned to today's riders" is a toggle with today's weights and presets; riders vs. expected stays on the fit. Owner's choices among options: **absolute trip ends** (not NHTS shares as slider weights, not the MPO travel model for now); rates from the **2022 NHTS** urban trips (both ends of every trip): **1.96 home ends per resident** (visits to friends' homes included), **1.01 work ends per job** (per worker; in-commuters' trips are real), **destination points balanced to residents** (study-area points × rate = 1.79 destination ends per resident × residents → 97.4 per point); drop-offs, changing mode, "something else" (6 %) unplaced. Shop jobs keep the **fitted 0.022 points per job** (it only splits the destination total). **Transit connections and frequency stay out** (potential describes the place); controls: walk limit and half-life only. Display in **trip ends a day**, fixed breaks 1k/2k/4k/8k; "What it adds" follows the active model. New stop color **potential per bus** (÷ weekday departures per direction, vs. the median stop). Scoreboard as a check only: CV R² **0.154** vs. 0.160 for the fitted walk catchment (no transit term). |
+| Schools by enrollment (2026-10-23) | Owner asked why campus stops looked over-served (potential per bus brown on campus; the fare-free 80 carries 23 % of systemwide boardings): OSM counted UW-Madison as one destination of 17 points (~1,700 trip ends a day), like Edgewood College. Now, as in travel-demand models, **school trips scale with enrollment**: NCES public (CCD) and private (PSS) K-12 and colleges (IPEDS fall 2023 headcount minus online-only) × NHTS school trip ends per student a day (**1.01 K-12, 0.34 college**; 365-day averages). School trips (purpose 06) leave the balanced destination pool (destination ends per resident 1.79 → 1.59; 97.4 → 89 per point); OSM schools/colleges only locate them; childcare stays a destination. Placement: K-12 at its school grounds (≤ 150 m), a college over its campus buildings by floor area (homes and sheds excluded; a campus belongs to its largest college). Tuned score and hexes: school trip ends fold into other destinations at 1 ÷ the potential's rate per point (not fit: school and campus stops are left out of the fit). Owner's picks among options: all schools via NCES, per-student rate, academic buildings, both models. Scoreboard, 20 splits: tuned 0.2101 → 0.2120, walk only 0.1566 → 0.1578, best fit 0.2409 → 0.2514 (all 20/20 better), potential 0.1555 → 0.1554 (flat). UW: 16,200 school trip ends over 198 buildings. **Campus per-bus barely moved** (21 → 19 brown campus stops): the national college rate can't explain the 80's volume (see Open questions). |
 | Site data in git (2026-10-19) | `site/public/data/` is **gitignored** until the owner is happy with it. |
 | Catchment file (2026-10-19) | All stops' blobs and spiderwebs in **one file**, `catchments.bin` (owner preference over one file per stop): a JSON index of byte ranges, then one raw-deflate record per stop (varint delta-encoded edge ids and coordinates, walk times as bytes in 10 s steps). The site fetches the index once and each selected stop's bytes with an HTTP range request, like PMTiles. 7.9 MB total (was 41 MB as JSON); ~9 kB per stop. Tried and rejected: storing the blob as non-overlapping rings (bigger: every boundary is stored twice). |
 
@@ -139,7 +140,8 @@ URLs, layers, fields, licenses and recon findings live in `config/sources.toml`.
 | **City of Madison tax parcels** (ArcGIS service) | Dwelling units per parcel (`TotalDwellingUnits`) |
 | **WI Statewide Parcel Map V12** | Parcels outside Madison (no unit count) |
 | **Protomaps** daily build | Basemap |
-| **2022 NHTS** (FHWA, public use v2.1) | Share of trips by destination purpose: sets destination group totals |
+| **2022 NHTS** (FHWA, public use v2.1) | Share of trips by destination purpose: sets destination group totals; trip-end rates for the potential (per resident, worker, student) |
+| **NCES** CCD (public K-12, ArcGIS service), PSS 2021-22 (private K-12), IPEDS 2023 (colleges; directory + fall enrollment by distance status) | School and college enrollment: school trip ends |
 | **MPO Metro Ridership by Stop** (Feb 2024, City open data) | Calibrating the score; riders vs. expected per stop |
 
 ## Architecture
@@ -299,6 +301,19 @@ exports in EPSG:4326.
   to revert. Building value was ruled out first: Madison's exempt parcels (UW,
   hospitals, government, the airport) have no assessed improvement value. Blocks over
   25 ha hold 27 % of jobs.
+- **Schools by enrollment** (2026-10-23; `10_staging/50_schools.sql`,
+  `40_generators/35_schools.sql`): `staging.schools` (155 K-12 schools, 64k students;
+  8 colleges, 61k in person) × `gen.trip_rates` school ends per student → `gen.schools`
+  (`trip_ends`; 65k K-12 + 20k college a day). OSM places of `enrollment_category`
+  (`education`) move from `gen.pois` to `gen.edu_places` (also used by the special-stop
+  check) and locate them: K-12 at the smallest school grounds within `school_match_m`,
+  colleges at the largest campus within `college_match_m` (a campus belongs to its
+  largest college: Aveda's NCES point is inside OSM's UW outline). On a campus,
+  `gen.campus_buildings` (OSM buildings, now all loaded, minus `campus_skip_buildings`,
+  ≥ `campus_building_min_m2`) share the trip ends by floor area, one generator each;
+  grounds use outline access points like parks; unmatched schools their NCES point →
+  `gen.school_points` → `gen.points` kind `school` (values in trip ends). Madison
+  College's other campuses get none (IPEDS has one point, Truax).
 - **Shop and clinic jobs** (`gen.points` kind `shopjobs`): retail + health-care jobs per
   block, part of other destinations at `shop_jobs_weight` points per job (fit: 0.022).
 - **Density map layer**: 150 m hexagons of homes (residents), jobs and other destinations
@@ -421,8 +436,9 @@ The `fit` step (`70_validation/`, `fit.py`; runs in `make`, ~5 s, before `stops.
   residents × 1.79 ÷ (distinct OSM points + 0.022 × shop jobs). Note: a polygon
   destination has one `gen.points` row per access point, so totals count each `gen_id`
   once (summing rows overcounted 5×).
-- Potential = 1.96 × residents + 1.01 × jobs + 97.4 × destination points, each
-  decay-weighted as in the score. At the defaults the median stop has ~2,450 trip ends a
+- Potential = 1.96 × residents + 1.01 × jobs + 89 × destination points + school trip
+  ends (2026-10-23; enrollment, above), each decay-weighted as in the score. School
+  trips aren't in the destination pool (1.59 ends per resident since then). At the defaults the median stop has ~2,450 trip ends a
   day (homes 35 %, jobs 17 %, destinations 48 % summed over stops; study-area trip
   ends 44 / 16 / 40 %). Report section "Potential" in `ridership.md`.
 
@@ -434,7 +450,8 @@ whole; platforms snap within 50 m; dasymetric population sums to the census; est
 units outside Madison near the census; Route A peak frequency plausible per direction (one-way and two-way stop); a 10-minute
 walkshed area plausible; no arterial crossing without signal/marking evidence; > 90 % of
 boardings matched; fitted settings inside the slider ranges; potential's trip-end rates
-plausible and destinations balanced to residents; destination group totals
+plausible and destinations balanced to residents; each school's trip ends counted in
+full and UW's spread over campus buildings; destination group totals
 match the trip shares; a stop's added value within its full catchment.
 `npm run check` in `site/` runs Prettier, ESLint and tsc. No frontend test suite.
 
@@ -510,6 +527,13 @@ Things learned the hard way; check these before debugging the same problem again
   is mode-neutral and in absolute units (its item 4); calibrating it on **all-mode trip
   ends from the MPO's regional travel model** (by zone) is the remaining step, if the
   MPO shares them.
+- **Campus stops still look over-served per bus** (2026-10-23): enrollment raised UW to
+  ~16,000 school trip ends a day, but Observatory at Elm would need ~34,000 to look
+  median. The national college rate (0.34 a day, mostly commuter and part-time
+  students, averaged over the year) misses a residential campus's class-to-class and
+  dorm-to-class trips that the fare-free 80 carries. Options discussed: mark campus
+  stops special in the per-bus view (like the fit), a residential-campus rate, or leave
+  the campus routes out of per-bus departures.
 - **Faster blobs (offered, not done)**: build each band from the previous band plus the
   new pieces (incremental union) instead of a full union per band; the unions are ~70 %
   of the blob export (~60 s). Output would differ by up to ~1 m in places, so verify by

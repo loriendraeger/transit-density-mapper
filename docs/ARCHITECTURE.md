@@ -49,7 +49,9 @@ byte-identical files, so a refactor can be checked with checksums.
 - `raw`: as delivered. GTFS tables are all text; OSM comes from pyosmium as
   `osm_edges` (ways split at graph nodes, with node ids), `osm_nodes`, `osm_pois`,
   `osm_buildings`.
-- `staging`: typed and reprojected; `service_days` expands the GTFS calendar.
+- `staging`: typed and reprojected; `service_days` expands the GTFS calendar;
+  `buildings` (all OSM buildings; `res_buildings` the residential ones); `schools`
+  (NCES K-12 and colleges with enrollment).
 - `net`: the routing graph. `ends`/`arms`/`end_sector` build the corner model;
   `vertices` (one per ordinary node, one per corner of an arterial node, plus platform
   split points); `base_edges` (kinds `walk`, `side_l`, `side_r`, `cross`); `edges` =
@@ -57,7 +59,8 @@ byte-identical files, so a refactor can be checked with checksums.
 - `transit`: `platform_cluster`, `clusters`, `rep_dates`, `departures`,
   `route_ways`, `hourly`, `period_windows`, `period_freq_way`, `period_freq` (per
   direction).
-- `gen`: `purpose_shares`, `trip_rates` (NHTS), `dest_groups`, `parcel_units`, `population`, `jobs`, `pois`, `poi_points`, `points` (all
+- `gen`: `purpose_shares`, `trip_rates` (NHTS), `edu_places` (OSM schools and campuses),
+  `schools`, `campus_buildings`, `school_points` (school trip ends), `dest_groups`, `parcel_units`, `population`, `jobs`, `pois`, `poi_points`, `points` (all
   generators), `snap` (point -> edge), `hex`.
 - `catch`: `reach` (stop × vertex × seconds), `edge_time` (reach stage); `gen_time`, `bands`, `marginal` (catchments stage); `access_times` (stop × hex × minutes per percentile), `access_bands`, `access_rev_bands` (access stage).
 - `valid`: `ridership` (MPO stops matched to platforms), `cluster_ridership`, `special`
@@ -75,7 +78,8 @@ byte-identical files, so a refactor can be checked with checksums.
 | Service periods, per-direction rule | `[frequency]` |
 | Destination kinds and weights within a category | `config/poi_categories.csv` (first matching row wins; category `ignore` drops) |
 | Destination group totals | trip shares from the NHTS: `config/trip_purposes.csv` (purpose code -> group), `config/destination_groups.csv` (category -> group), `[generators] purpose_trips` (urban / all / transit) |
-| Potential's trip-end rates (which NHTS purposes count as home, work, destination) | `config/trip_purposes.csv` `trip_end` |
+| Potential's trip-end rates (which NHTS purposes count as home, work, school, destination) | `config/trip_purposes.csv` `trip_end` |
+| School matching and campus buildings | `[generators]` `school_match_m`, `college_match_m`, `campus_building_min_m2`, `campus_skip_buildings` |
 | Default walk limit and half-life | `[score]` (the site has sliders for both) |
 | Unit estimates outside Madison | `[generators]` and `40_generators/10_population.sql` |
 | Blob shape | `[catchments]` |
