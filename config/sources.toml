@@ -232,3 +232,80 @@ transit-only shares; urban trips (9.2k to a destination) are used instead. Check
 against boardings (2026-10-21): urban shares beat the hand weights in 20 of 20
 cross-validation splits; transit-only shares did worse.
 """
+
+[schools_public]
+name = "NCES Common Core of Data, School Characteristics (current; public K-12, Wisconsin)"
+publisher = "U.S. Department of Education, National Center for Education Statistics (EDGE)"
+url = "https://services1.arcgis.com/Ua5sjt3LWTPigjyD/arcgis/rest/services/School_Characteristics_Current/FeatureServer/1"
+landing = "https://data-nces.opendata.arcgis.com/"
+fetch = "arcgis"
+where = "LSTATE='WI'"
+local_path = "data/raw/nces/ccd_schools_wi.gpkg"
+format = "gpkg"
+table = "ccd_schools"
+license = "Public domain (U.S. Government work)"
+attribution = "NCES, Common Core of Data (public schools)"
+retrieved = "2026-10-23"
+verified = true
+notes = """
+Public K-12 schools with enrollment: TOTAL (students; negative = missing), VIRTUAL
+(virtual schools have no building to travel to), SY_STATUS_TEXT, LATCOD/LONCOD,
+SURVYEAR. Sets school trip ends (40_generators/35_schools.sql, 2026-10-23).
+"""
+
+[schools_private]
+name = "NCES Private School Universe Survey 2021-22 (public use file)"
+publisher = "U.S. Department of Education, National Center for Education Statistics"
+url = "https://nces.ed.gov/surveys/pss/zip/pss2122_pu_csv.zip"
+landing = "https://nces.ed.gov/surveys/pss/pssdata.asp"
+fetch = "zip"
+local_path = "data/raw/nces/pss2122_pu.csv"
+format = "csv"
+table = "pss_schools"
+filter = { column = "PSTABB", value = "WI" }
+license = "Public domain (U.S. Government work)"
+attribution = "NCES, Private School Universe Survey 2021-22"
+retrieved = "2026-10-23"
+verified = true
+notes = """
+Private K-12 schools: PPIN, PINST (name), NUMSTUDS (students), LATITUDE22/LONGITUDE22.
+2021-22 is the latest public file. 38 schools, 5,662 students in the study-area bbox.
+"""
+
+[colleges]
+name = "IPEDS Institutional Characteristics, Directory 2023 (HD2023)"
+publisher = "U.S. Department of Education, National Center for Education Statistics"
+url = "https://nces.ed.gov/ipeds/datacenter/data/HD2023.zip"
+landing = "https://nces.ed.gov/ipeds/datacenter/DataFiles.aspx"
+fetch = "zip"
+local_path = "data/raw/nces/HD2023.csv"
+format = "csv"
+table = "ipeds_hd"
+filter = { column = "STABBR", value = "WI" }
+license = "Public domain (U.S. Government work)"
+attribution = "NCES, Integrated Postsecondary Education Data System (2023)"
+retrieved = "2026-10-23"
+verified = true
+notes = """
+Colleges and universities: UNITID, INSTNM, LATITUDE/LONGITUD (one point per institution:
+Madison College's is Truax, so its other campuses get none of its enrollment).
+"""
+
+[college_enrollment]
+name = "IPEDS Fall Enrollment 2023, distance education status (EF2023A_DIST)"
+publisher = "U.S. Department of Education, National Center for Education Statistics"
+url = "https://nces.ed.gov/ipeds/datacenter/data/EF2023A_DIST.zip"
+landing = "https://nces.ed.gov/ipeds/datacenter/DataFiles.aspx"
+fetch = "zip"
+local_path = "data/raw/nces/ef2023a_dist.csv"
+format = "csv"
+table = "ipeds_ef_dist"
+license = "Public domain (U.S. Government work)"
+attribution = "NCES, IPEDS Fall Enrollment 2023"
+retrieved = "2026-10-23"
+verified = true
+notes = """
+Fall 2023 headcount by distance-education status. EFDELEV = 1 (all students, padded
+with a space): EFDETOT total, EFDEEXC enrolled exclusively in distance education. In
+person = EFDETOT - EFDEEXC (UW-Madison 49,605 - 1,416 = 48,189).
+"""

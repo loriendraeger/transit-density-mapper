@@ -9,8 +9,9 @@ a street shares none), and crossing/signal tags live on nodes.
 - osm_nodes: graph nodes plus every crossing / traffic-signal node, with their tags.
 - osm_pois: anything tagged with a key from config/poi_categories.csv, as a point
   (nodes) or a polygon (closed ways and multipolygon relations).
-- osm_buildings: residential buildings (apartments, houses, dorms...) with their
-  levels, for estimating dwelling units where parcels don't have a count.
+- osm_buildings: every building with its type and levels: residential ones estimate
+  dwelling units where parcels don't have a count (10_staging/40_osm.sql), the rest
+  place college enrollment on campus buildings (40_generators/35_schools.sql).
 """
 
 import csv
@@ -61,17 +62,6 @@ NODE_TAGS = {
     "name",
 }
 SIGNAL_NODES = {"traffic_signals", "crossing"}
-RESIDENTIAL_BUILDINGS = {
-    "apartments",
-    "residential",
-    "dormitory",
-    "house",
-    "detached",
-    "semidetached_house",
-    "terrace",
-    "duplex",
-    "bungalow",
-}
 NO_ACCESS = {"no", "private"}
 FOOT_OK = {"yes", "designated", "permissive", "destination"}
 
@@ -145,7 +135,7 @@ class Collector(osmium.SimpleHandler):
 
     def area(self, a):
         building = a.tags.get("building")
-        if building in RESIDENTIAL_BUILDINGS:
+        if building and building != "no":
             try:
                 geom = bytes.fromhex(self.wkb.create_multipolygon(a))
                 self.buildings.append((building, a.tags.get("building:levels"), geom))
@@ -247,5 +237,5 @@ def load_osm(pbf) -> None:
         conn.execute("ANALYZE raw.osm_edges; ANALYZE raw.osm_nodes; ANALYZE raw.osm_pois")
     print(
         f"loaded {n_edges} edges, {len(node_xy)} graph nodes, {len(h.pois)} pois, "
-        f"{len(h.buildings)} residential buildings"
+        f"{len(h.buildings)} buildings"
     )

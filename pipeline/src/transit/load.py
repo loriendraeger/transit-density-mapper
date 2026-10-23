@@ -94,6 +94,32 @@ def load_lodes(src: dict) -> None:
     print(f"loaded raw.{src['table']}")
 
 
+def load_csv(src: dict) -> None:
+    """A plain CSV -> raw.<table>, all columns text with lower-case names (staging
+    casts). `filter = {column, value}` keeps matching rows only (a state's rows of a
+    national file). Headers and values are stripped: IPEDS pads some codes."""
+    path = config.REPO / src["local_path"]
+    flt = src.get("filter")
+    with (
+        open(path, encoding="utf-8-sig", errors="replace", newline="") as f,
+        psycopg.connect("") as conn,
+    ):
+        reader = csv.reader(f)
+        header = [c.strip().lower() for c in next(reader)]
+        keep = header.index(flt["column"].lower()) if flt else None
+        cols = ", ".join(f'"{c}" text' for c in header)
+        conn.execute(f"DROP TABLE IF EXISTS raw.{src['table']}")
+        conn.execute(f"CREATE TABLE raw.{src['table']} ({cols})")
+        n = 0
+        with conn.cursor().copy(f"COPY raw.{src['table']} FROM STDIN") as cp:
+            for row in reader:
+                if keep is not None and row[keep].strip() != flt["value"]:
+                    continue
+                cp.write_row([v.strip() or None for v in row])
+                n += 1
+    print(f"loaded raw.{src['table']}: {n} rows")
+
+
 def load(names: list[str] | None = None) -> None:
     sources = {k: v for k, v in config.sources().items() if v.get("table")}
     for name in names or list(sources):
@@ -107,5 +133,7 @@ def load(names: list[str] | None = None) -> None:
             load_lodes(src)
         elif name == "osm":
             load_osm(path)
+        elif src.get("format") == "csv":
+            load_csv(src)
         else:
             load_vector(src)

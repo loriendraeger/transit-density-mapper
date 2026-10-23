@@ -40,14 +40,22 @@ FROM raw.osm_nodes;
 ALTER TABLE staging.osm_nodes ADD PRIMARY KEY (id);
 CREATE INDEX ON staging.osm_nodes USING gist (geom);
 
--- Residential buildings, for estimating dwelling units outside Madison.
-DROP TABLE IF EXISTS staging.res_buildings;
-CREATE TABLE staging.res_buildings AS
+-- Buildings: residential ones estimate dwelling units outside Madison; the rest place
+-- college enrollment on campus (40_generators/35_schools.sql).
+DROP TABLE IF EXISTS staging.buildings CASCADE;
+CREATE TABLE staging.buildings AS
 SELECT building,
        CASE WHEN levels ~ '^[0-9]+(\.[0-9]+)?$' THEN levels::float8 END AS levels,
        ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_Transform(geom, :crs)), 3))
            ::geometry(MultiPolygon, :crs) AS geom
 FROM raw.osm_buildings;
-ALTER TABLE staging.res_buildings ADD COLUMN area_m2 float8;
-UPDATE staging.res_buildings SET area_m2 = ST_Area(geom);
+ALTER TABLE staging.buildings ADD COLUMN area_m2 float8;
+UPDATE staging.buildings SET area_m2 = ST_Area(geom);
+CREATE INDEX ON staging.buildings USING gist (geom);
+
+DROP TABLE IF EXISTS staging.res_buildings;
+CREATE TABLE staging.res_buildings AS
+SELECT * FROM staging.buildings
+WHERE building IN ('apartments', 'residential', 'dormitory', 'house', 'detached',
+                   'semidetached_house', 'terrace', 'duplex', 'bungalow');
 CREATE INDEX ON staging.res_buildings USING gist (geom);

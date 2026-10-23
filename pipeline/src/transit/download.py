@@ -3,6 +3,7 @@ forced, since some downloads are large and upstream files change daily."""
 
 import shutil
 import subprocess
+import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -45,7 +46,8 @@ def download_source(name: str, src: dict, force: bool = False) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.unlink(missing_ok=True)
         # The ESRIJSON driver pages through the service (resultOffset) on its own.
-        url = f"{src['url']}/query?where=1%3D1&outFields=*&f=json&outSR=4326"
+        where = urllib.parse.quote(src.get("where", "1=1"))
+        url = f"{src['url']}/query?where={where}&outFields=*&f=json&outSR=4326"
         run(["ogr2ogr", "-f", "GPKG", str(path), url, "-nln", src["table"]])
     else:
         raise SystemExit(f"[{name}] unknown fetch method {method!r}")
