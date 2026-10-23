@@ -1,10 +1,11 @@
 import { createMemo, createSignal, For, type JSX, Show } from 'solid-js'
 
 import { DAY_TYPES, type DayType, type Period, PERIODS, type Route } from '../lib/contract'
-import { periodFreq, type Scored } from '../lib/scoring'
+import { periodFreq, type Scored, weekdayDepartures } from '../lib/scoring'
 import { compact, fmt, headwayMin } from '../lib/units'
 import {
   data,
+  model,
   period,
   setShowTransitReach,
   showTransitReach,
@@ -35,13 +36,19 @@ export function RouteChip(props: { route: Route | undefined; id: string }): JSX.
   )
 }
 
-/** Score component as a meter: 0-100 against the best stop. */
-function Meter(props: { label: string; value: number; detail: string }): JSX.Element {
+/** Score component as a meter: a bar out of 100 (against the best stop, or a share of
+ * the stop's potential) and the number to show (default: the bar's value). */
+function Meter(props: {
+  label: string
+  value: number
+  display?: string
+  detail: string
+}): JSX.Element {
   return (
     <div class="meter">
       <div class="meter-head">
         <span>{props.label}</span>
-        <span class="num">{fmt(props.value, 0)}</span>
+        <span class="num">{props.display ?? fmt(props.value, 0)}</span>
       </div>
       <div class="meter-track">
         <div
@@ -75,6 +82,17 @@ function ratioText(x: number): string {
   return 'about as expected'
 }
 
+/** 2.1× / 1.5× less than / about: against the median, with the riders ramp's gray band. */
+function perBusText(x: number): string {
+  if (x >= 1.25) {
+    return `${fmt(x, x < 10 ? 1 : 0)}×`
+  }
+  if (x <= 0.8) {
+    return `${fmt(1 / x, 1)}× less than`
+  }
+  return 'about'
+}
+
 export default function StopDetail(props: { s: Scored }): JSX.Element {
   const [day, setDay] = createSignal<DayType>('weekday')
   const routes = createMemo(() => new Map((data()?.routes ?? []).map((r) => [r.id, r])))
@@ -99,6 +117,19 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
       return 0
     }
     return a[key].slice(0, Math.floor(t / bandMin)).reduce((x, y) => x + y, 0)
+  }
+  /** A component's bar (share of the potential, or 0-100 tuned) and its display. */
+  function part(k: 'pop' | 'jobs' | 'dest'): number {
+    return model() === 'potential'
+      ? (100 * props.s.trips[k]) / Math.max(props.s.potential, 1e-9)
+      : props.s.norm[k]
+  }
+  function partDisplay(k: 'pop' | 'jobs' | 'dest'): string | undefined {
+    return model() === 'potential' ? fmt(props.s.trips[k], 0) : undefined
+  }
+  function departures(): number {
+    const d = data()
+    return d ? weekdayDepartures(stop(), d) : 0
   }
   const topCategories = createMemo(() =>
     Object.entries(props.s.raw.categories)
@@ -134,9 +165,12 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
 
       <div class="tiles">
         <div class="tile">
-          <span class="tile-label">Catchment score</span>
+          <span class="tile-label">
+            {model() === 'potential' ? 'Potential' : 'Catchment score'}
+          </span>
           <span class="tile-value">{fmt(props.s.score, 0)}</span>
           <span class="hint">
+            <Show when={model() === 'potential'}>trip ends a day · </Show>
             rank {props.s.rank} of {data()?.stops.length ?? 0}
           </span>
         </div>
@@ -149,6 +183,16 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
           </span>
         </div>
       </div>
+
+      <Show when={props.s.perBus}>
+        {(x) => (
+          <p class="hint">
+            Potential per weekday bus: {perBusText(x())} the median stop's (
+            {fmt(props.s.potential, 0)} trip ends a day over {fmt(departures(), 0)} departures per
+            direction).
+          </p>
+        )}
+      </Show>
 
       <Show when={stop().riders}>
         {(r) => (
@@ -183,8 +227,11 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
           <>
             <h2>What it adds over its neighbors</h2>
             <p>
-              <strong>{fmt((props.s.adds ?? 0) * 100, 0)} %</strong> of this stop's catchment isn't
-              served as well by another stop on its routes.{' '}
+              <strong>{fmt((props.s.adds ?? 0) * 100, 0)} %</strong> of this stop's{' '}
+              {model() === 'potential'
+                ? `potential (${fmt(props.s.addsTrips ?? 0, 0)} trip ends a day)`
+                : 'catchment'}{' '}
+              isn't served as well by another stop on its routes.{' '}
               {o().residents > 0
                 ? `${compact(o().residents_far)} of the ${compact(o().residents)} residents within ${String(data()?.settings.score.walk_min ?? 10)} minutes would walk 2+ minutes more without it.`
                 : ''}
@@ -202,17 +249,20 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
       <h2>What's within {walkMin()} minutes</h2>
       <Meter
         label="Homes"
-        value={props.s.norm.pop}
+        value={part('pop')}
+        display={partDisplay('pop')}
         detail={`${compact(within('pop'))} residents (2020 Census plus new housing, placed by dwelling units)`}
       />
       <Meter
         label="Jobs"
-        value={props.s.norm.jobs}
+        value={part('jobs')}
+        display={partDisplay('jobs')}
         detail={`${compact(within('jobs'))} jobs (LODES 2023)`}
       />
       <Meter
         label="Other destinations"
-        value={props.s.norm.dest}
+        value={part('dest')}
+        display={partDisplay('dest')}
         detail={
           topCategories().length
             ? `Most from ${topCategories()
@@ -221,15 +271,25 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
             : 'None in reach'
         }
       />
-      <Meter
-        label="Transit connections"
-        value={props.s.norm.transit}
-        detail={`${compact(byTransit('jobs', 30))} jobs within 30 minutes by transit`}
-      />
-      <p class="hint">
-        Scores are 0–100 against the best stop at these settings; the overall score weights them{' '}
-        {weights().pop}:{weights().jobs}:{weights().dest}:{weights().transit}.
-      </p>
+      <Show
+        when={model() === 'tuned'}
+        fallback={
+          <p class="hint">
+            Trip ends a day by every mode, nearer counting more; bars show each part's share of the
+            stop's potential.
+          </p>
+        }
+      >
+        <Meter
+          label="Transit connections"
+          value={props.s.norm.transit}
+          detail={`${compact(byTransit('jobs', 30))} jobs within 30 minutes by transit`}
+        />
+        <p class="hint">
+          Scores are 0–100 against the best stop at these settings; the overall score weights them{' '}
+          {weights().pop}:{weights().jobs}:{weights().dest}:{weights().transit}.
+        </p>
+      </Show>
 
       <Show when={stop().access}>
         <h2>By transit</h2>
@@ -255,6 +315,12 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
             </tr>
           </tbody>
         </table>
+        <Show when={model() === 'potential'}>
+          <p>
+            Transit connections: <strong>{fmt(props.s.norm.transit, 0)}</strong> of 100 against the
+            best stop (jobs reachable by riding, nearer counting more; not part of the potential).
+          </p>
+        </Show>
         <p class="hint">
           Walking and riding, weekday {data()?.settings.score.access.departure_hour ?? 7}–
           {(data()?.settings.score.access.departure_hour ?? 7) +

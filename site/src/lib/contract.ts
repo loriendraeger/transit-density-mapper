@@ -132,6 +132,16 @@ export interface StopsFile {
     cluster_max_diameter_m: number
     periods: Record<Period, PeriodSetting>
     score: ScoreSettings
+    /** The potential score (the default model): trip ends a day by all modes per
+     * decay-weighted resident, job and destination point (NHTS 2022 rates; fit.py), and
+     * its R² against boardings, a check only. */
+    potential: {
+      home_rate: number
+      work_rate: number
+      dest_rate: number
+      r2: number
+      cv_r2: number
+    }
     /** Share of destination trips by purpose group (NHTS), setting each group's total. */
     purpose_shares: Record<string, number>
     fit: FitSettings

@@ -9,10 +9,12 @@ import {
   densities,
   flyTo,
   halfLife,
+  model,
   period,
   selectedId,
   setDensities,
   setHalfLife,
+  setModel,
   setPeriod,
   setSelectedId,
   setView,
@@ -27,6 +29,7 @@ import {
 // The URL mirrors the settings both ways, so a view can be shared. Hash routes (GitHub
 // Pages has no SPA fallback): #/map, #/stops, #/about. Search params (defaults omitted):
 //   stop=183                  selected stop (cluster id)
+//   model=tuned               score tuned to today's riders (default: potential)
 //   walk=5                    walk-time limit, minutes (default: pipeline [score])
 //   hl=3                      half-life, minutes (default: pipeline [score])
 //   w=4,0.5,5,2               weights: homes, jobs, other destinations, transit connections
@@ -50,6 +53,7 @@ function applyParams(p: Params): void {
     return
   }
   const s = d.settings.score
+  setModel(p.model === 'tuned' ? 'tuned' : 'potential')
   setWalkMin(num(p.walk, 5, d.settings.max_walk_min) ?? s.walk_min)
   setHalfLife(num(p.hl, 1, 20) ?? s.half_life_min)
   const w = defaultWeights(d)
@@ -95,6 +99,7 @@ export function currentParams(): Params {
   const s = d.settings.score
   return {
     stop: selectedId() ?? undefined,
+    model: model() === 'potential' ? undefined : model(),
     walk: walkMin() === s.walk_min ? undefined : String(walkMin()),
     hl: halfLife() === s.half_life_min ? undefined : String(halfLife()),
     w: weightsAreDefault() ? undefined : [w.pop, w.jobs, w.dest, w.transit].map(String).join(','),

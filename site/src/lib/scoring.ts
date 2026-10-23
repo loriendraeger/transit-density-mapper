@@ -1,6 +1,10 @@
 // Catchment scores and frequencies, computed in the browser from stops.json so the
-// weights and the service period apply instantly. The walk limit and decay are fixed by
-// the pipeline (pipeline.toml [score]); the decay stays general for the blob shading.
+// settings and the service period apply instantly. Two score models:
+//   potential  trip ends a day by all modes within the walk (NHTS rates per resident,
+//              job and destination point; stops.json settings.potential), not fit to
+//              ridership: where people live and go, irrespective of mode
+//   tuned      the weighted 0-100 score with weights fit to today's boardings
+// The decay stays general for the blob shading.
 
 import { type Period, PERIODS, type ScoreSettings, type Stop, type StopsFile } from './contract'
 
@@ -46,7 +50,11 @@ export interface Weights {
   transit: number
 }
 
+/** Which score the site shows (see the top of this file). */
+export type Model = 'potential' | 'tuned'
+
 export interface Settings {
+  model: Model
   walkMin: number
   decay: Decay
   weights: Weights
@@ -75,14 +83,23 @@ export interface Scored {
   raw: Components
   /** 0-100 against the best stop at the same settings. */
   norm: { pop: number; jobs: number; dest: number; transit: number }
+  /** Potential: decay-weighted trip ends a day by all modes, per component and total. */
+  trips: { pop: number; jobs: number; dest: number }
+  potential: number
+  /** The active model's score: potential (trip ends a day) or the tuned 0-100 score. */
   score: number
+  /** Potential per weekday bus (trip ends / departures per direction in the weekday
+   * periods), relative to the median stop; null without weekday service. */
+  perBus: number | null
   /** Trips per hour in the chosen period (per direction, all routes). */
   freq: number
   /** Observed / expected weekday boardings (ridersRatio); null without data. */
   riders: number | null
-  /** Share of the stop's catchment (default walk, current weights) that no other stop on
-   * its routes serves as well, 0-1; null without route data. */
+  /** Share of the stop's catchment (default walk; trip ends, or the tuned weights) that
+   * no other stop on its routes serves as well, 0-1; null without route data. */
   adds: number | null
+  /** Potential: trip ends a day that only this stop serves as well (default walk). */
+  addsTrips: number | null
   rank: number
 }
 
@@ -151,6 +168,29 @@ export function stopFreq(stop: Stop, s: Settings): number {
   return den > 0 ? num / den : 0
 }
 
+/** Weekday departures per direction (all routes) over the weekday periods' windows. */
+export function weekdayDepartures(stop: Stop, data: StopsFile): number {
+  let n = 0
+  for (const p of PERIODS) {
+    const ps = data.settings.periods[p]
+    if (ps.day_type !== 'weekday') {
+      continue
+    }
+    let hours = 0
+    for (let i = 0; i + 1 < ps.hours.length; i += 2) {
+      hours += (ps.hours[i + 1] ?? 0) - (ps.hours[i] ?? 0)
+    }
+    n += periodFreq(stop, p) * hours
+  }
+  return n
+}
+
+function median(xs: number[]): number {
+  const v = [...xs].sort((a, b) => a - b)
+  const m = Math.floor(v.length / 2)
+  return v.length % 2 ? (v[m] ?? 0) : ((v[m - 1] ?? 0) + (v[m] ?? 0)) / 2
+}
+
 export function scoreAll(data: StopsFile, s: Settings): Scored[] {
   const nBands = data.settings.max_walk_min / data.settings.band_min
   const bw = bandWeights(s.decay, s.walkMin, nBands, data.settings.band_min)
@@ -168,8 +208,10 @@ export function scoreAll(data: StopsFile, s: Settings): Scored[] {
   const mTransit = max('transit')
   const w = s.weights
   const wSum = w.pop + w.jobs + w.dest + w.transit
-  // What each stop adds: its added totals over its full ones, each component normalized
-  // by the largest full total (as the score is), combined with the current weights.
+  const pr = data.settings.potential
+  // What each stop adds: its added totals over its full ones, combined per model: in
+  // trip ends (potential), or each component normalized by the largest full total (as
+  // the tuned score is) with the current weights.
   const kShop = data.settings.score.shop_jobs_weight
   function ov(stop: Stop, key: 'full' | 'added'): [number, number, number] {
     const o = stop.overlap?.[key] ?? {}
@@ -178,20 +220,20 @@ export function scoreAll(data: StopsFile, s: Settings): Scored[] {
   const ovMax = [0, 1, 2].map((i) =>
     Math.max(1e-9, ...data.stops.map((stop) => ov(stop, 'full')[i] ?? 0)),
   )
-  const ovW = [s.weights.pop, s.weights.jobs, s.weights.dest]
+  const rates = [pr.home_rate, pr.work_rate, pr.dest_rate]
+  const ovW =
+    s.model === 'potential'
+      ? rates
+      : [0, 1, 2].map((i) => ([w.pop, w.jobs, w.dest][i] ?? 0) / (ovMax[i] ?? 1))
+  function weighted(v: [number, number, number], by: number[]): number {
+    return v.reduce((acc, x, i) => acc + x * (by[i] ?? 0), 0)
+  }
   function adds(stop: Stop): number | null {
     if (!stop.overlap) {
       return null
     }
-    const f = ov(stop, 'full')
-    const a = ov(stop, 'added')
-    let num = 0
-    let den = 0
-    for (let i = 0; i < 3; i++) {
-      num += ((ovW[i] ?? 0) * (a[i] ?? 0)) / (ovMax[i] ?? 1)
-      den += ((ovW[i] ?? 0) * (f[i] ?? 0)) / (ovMax[i] ?? 1)
-    }
-    return den > 0 ? num / den : null
+    const den = weighted(ov(stop, 'full'), ovW)
+    return den > 0 ? weighted(ov(stop, 'added'), ovW) / den : null
   }
   const scored = data.stops.map((stop, i) => {
     const raw = raws[i]
@@ -206,9 +248,34 @@ export function scoreAll(data: StopsFile, s: Settings): Scored[] {
         ? (w.pop * norm.pop + w.jobs * norm.jobs + w.dest * norm.dest + w.transit * norm.transit) /
           wSum
         : 0
-    const riders = ridersRatio(stop, data.settings.fit.ratio_k)
-    return { stop, raw, norm, score, freq: stopFreq(stop, s), riders, adds: adds(stop), rank: 0 }
+    const trips = {
+      pop: pr.home_rate * raw.pop,
+      jobs: pr.work_rate * raw.jobs,
+      dest: pr.dest_rate * raw.dest,
+    }
+    const potential = trips.pop + trips.jobs + trips.dest
+    const deps = weekdayDepartures(stop, data)
+    return {
+      stop,
+      raw,
+      norm,
+      trips,
+      potential,
+      score: s.model === 'potential' ? potential : score,
+      perBus: deps > 0 ? potential / deps : null,
+      freq: stopFreq(stop, s),
+      riders: ridersRatio(stop, data.settings.fit.ratio_k),
+      adds: adds(stop),
+      addsTrips: stop.overlap ? weighted(ov(stop, 'added'), rates) : null,
+      rank: 0,
+    }
   })
+  const mPerBus = median(scored.flatMap((x) => (x.perBus === null ? [] : [x.perBus])))
+  for (const x of scored) {
+    if (x.perBus !== null) {
+      x.perBus /= Math.max(mPerBus, 1e-9)
+    }
+  }
   const order = [...scored].sort((a, b) => b.score - a.score)
   order.forEach((x, i) => {
     x.rank = i + 1

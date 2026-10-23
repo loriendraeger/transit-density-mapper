@@ -1,7 +1,14 @@
 import { createMemo, createRoot, createSignal } from 'solid-js'
 
 import type { Period, StopsFile } from '../lib/contract'
-import { type Decay, scoreAll, type Scored, type Settings, type Weights } from '../lib/scoring'
+import {
+  type Decay,
+  type Model,
+  scoreAll,
+  type Scored,
+  type Settings,
+  type Weights,
+} from '../lib/scoring'
 import type { Generator } from '../map/colors'
 
 // App state as Solid signals. The map subscribes and updates sources/paint in place.
@@ -13,10 +20,14 @@ export const [data, setData] = createSignal<StopsFile | null>(null)
 export const [loadError, setLoadError] = createSignal<string | null>(null)
 
 // --- scoring settings ---------------------------------------------------------------
-// The user sets the walk limit, half-life and weights (in the URL; see url.ts), directly
-// or from two presets: the default assumption (pipeline.toml [score], weights fit to
+// Two score models (lib/scoring.ts): potential (the default; trip ends a day by all
+// modes, fixed rates) and tuned to today's riders (weights fit to boardings). Both use
+// the walk limit and half-life. In tuned mode the user sets the weights too, directly or
+// from two presets: the default assumption (pipeline.toml [score], weights fit to
 // ridership there) and the best fit (the walk/half-life that predict ridership best).
-// Period weights are fixed.
+// All in the URL (url.ts). Period weights are fixed.
+
+export const [model, setModel] = createSignal<Model>('potential')
 
 export const [walkMin, setWalkMin] = createSignal(10)
 export const [halfLife, setHalfLife] = createSignal(4)
@@ -124,6 +135,7 @@ export function initFromData(d: StopsFile): void {
 
 export const settings = createRoot(() =>
   createMemo((): Settings => ({
+    model: model(),
     walkMin: walkMin(),
     decay: decay(),
     weights: weights(),
@@ -171,7 +183,7 @@ export const [showCrossings, setShowCrossings] = createSignal(false)
 export const [showRoutes, setShowRoutes] = createSignal(true)
 export const [blobOpacity, setBlobOpacity] = createSignal(0.5)
 /** What stop circles are colored by. */
-export type StopColor = 'score' | 'freq' | 'transit' | 'riders' | 'adds'
+export type StopColor = 'score' | 'freq' | 'transit' | 'riders' | 'adds' | 'perbus'
 export const [stopColor, setStopColor] = createSignal<StopColor>('score')
 
 /** Ask the map to fly to a stop (from the table or the URL). */

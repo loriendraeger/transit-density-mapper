@@ -50,6 +50,7 @@ import {
   densities,
   densityOpacity,
   flyRequest,
+  model,
   scored,
   scoredById,
   selectedId,
@@ -74,6 +75,8 @@ import {
   INK_2,
   MODE,
   neutralFlavor,
+  PERBUS_BREAKS,
+  POTENTIAL_BREAKS,
   RIDERS_BREAKS,
   RIDERS_RAMP,
   SCORE_BREAKS,
@@ -101,6 +104,9 @@ interface StopProps {
   /** What the stop adds over its neighbors (0-1); has_adds false without data. */
   adds: number
   has_adds: boolean
+  /** Potential per weekday bus vs. the median stop; has_perbus false without service. */
+  perbus: number
+  has_perbus: boolean
   observed: number
   expected: number
 }
@@ -436,7 +442,7 @@ export default function MapView(): JSX.Element {
       popup
         .setLngLat(geom.coordinates as [number, number])
         .setHTML(
-          `<strong>${escapeHtml(p.name)}</strong><br>Score ${fmt(p.score, 0)} · ${fmt(p.freq, 1)} trips/h` +
+          `<strong>${escapeHtml(p.name)}</strong><br>${untrack(model) === 'potential' ? `${fmt(p.score, 0)} trip ends/day` : `Score ${fmt(p.score, 0)}`} · ${fmt(p.freq, 1)} trips/h` +
             (p.has_riders
               ? `<br>${fmt(p.observed, 0)} riders/weekday · ${fmt(p.expected, 0)} expected`
               : ''),
@@ -529,6 +535,8 @@ export default function MapView(): JSX.Element {
           transit: s.norm.transit,
           adds: s.adds ?? 0,
           has_adds: s.adds !== null,
+          perbus: s.perBus ?? 0,
+          has_perbus: s.perBus !== null,
         } satisfies StopProps,
       }))
       // Busiest stops draw last (on top).
@@ -539,15 +547,17 @@ export default function MapView(): JSX.Element {
       const by = stopColor()
       const selected: ExpressionSpecification = ['boolean', ['feature-state', 'selected'], false]
       const ink = mode === 'dark' ? '#f0efec' : '#0b0b0b'
-      if (by === 'riders' || by === 'adds') {
+      if (by === 'riders' || by === 'adds' || by === 'perbus') {
         // Stops without the figure are hollow (surface fill, ink outline).
-        const has: ExpressionSpecification = ['get', by === 'riders' ? 'has_riders' : 'has_adds']
+        const has: ExpressionSpecification = ['get', `has_${by === 'riders' ? 'riders' : by}`]
         m.setPaintProperty('stops', 'circle-color', [
           'case',
           has,
           by === 'riders'
             ? stepExpr(['get', 'ratio'], RIDERS_RAMP[mode], RIDERS_BREAKS)
-            : stepExpr(['get', 'adds'], SCORE_RAMP[mode], ADDS_BREAKS),
+            : by === 'perbus'
+              ? stepExpr(['get', 'perbus'], RIDERS_RAMP[mode], PERBUS_BREAKS)
+              : stepExpr(['get', 'adds'], SCORE_RAMP[mode], ADDS_BREAKS),
           surface,
         ])
         m.setPaintProperty('stops', 'circle-stroke-color', [
@@ -560,12 +570,13 @@ export default function MapView(): JSX.Element {
         ])
         return
       }
-      const byFreq = by === 'freq'
-      m.setPaintProperty(
-        'stops',
-        'circle-color',
-        stepExpr(['get', by], SCORE_RAMP[mode], byFreq ? FREQ_BREAKS : SCORE_BREAKS),
-      )
+      const breaks =
+        by === 'freq'
+          ? FREQ_BREAKS
+          : by === 'score' && model() === 'potential'
+            ? POTENTIAL_BREAKS
+            : SCORE_BREAKS
+      m.setPaintProperty('stops', 'circle-color', stepExpr(['get', by], SCORE_RAMP[mode], breaks))
       m.setPaintProperty('stops', 'circle-stroke-color', ['case', selected, ink, surface])
     })
 

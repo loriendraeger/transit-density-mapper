@@ -85,6 +85,15 @@ export const TRANSIT_REACH_BREAKS = [15, 30, 45]
 /** Class breaks for the score ramp (0-100). */
 export const SCORE_BREAKS = [20, 40, 60, 80]
 
+/** Potential breaks (trip ends a day, all modes): fixed doublings, so a color keeps its
+ * meaning as the walk settings change (at the defaults about 8 / 40 / 70 / 88 % of stops
+ * fall below each; 2026-10-22). */
+export const POTENTIAL_BREAKS = [1000, 2000, 4000, 8000]
+
+/** Potential per weekday bus relative to the median stop, on the riders ramp: red = less
+ * potential per bus than typical, blue = more (lots of trips nearby for the service). */
+export const PERBUS_BREAKS = RIDERS_BREAKS
+
 /** Density breaks per km2 (destinations: roughly the 60th-95th percentile of hexes,
  * points plus shop and clinic jobs at the fitted rate; 2026-10-21). */
 export const DENSITY_BREAKS: Record<Generator, number[]> = {

@@ -1,14 +1,17 @@
 import { For, type JSX, Show } from 'solid-js'
 
 import { type Period, PERIODS } from '../lib/contract'
+import { fmt } from '../lib/units'
 import {
   activePreset,
   applyPreset,
   data,
   halfLife,
+  model,
   period,
   periodWeights,
   setHalfLife,
+  setModel,
   setPeriod,
   setWalkMin,
   setWeights,
@@ -71,40 +74,112 @@ function Slider(props: {
 export default function Settings(): JSX.Element {
   return (
     <section class="settings">
+      <h2>Score</h2>
+      <div class="segmented presets" role="radiogroup" aria-label="Score model">
+        <button
+          role="radio"
+          aria-checked={model() === 'potential'}
+          onClick={() => {
+            setModel('potential')
+          }}
+        >
+          Potential (all modes)
+        </button>
+        <button
+          role="radio"
+          aria-checked={model() === 'tuned'}
+          onClick={() => {
+            setModel('tuned')
+          }}
+        >
+          Tuned to today's riders
+        </button>
+      </div>
+      <Show when={data()}>
+        {(d) => (
+          <p class="hint">
+            {model() === 'potential' ? (
+              <>
+                Trip ends a day by every mode within the walk: residents ×{' '}
+                {fmt(d().settings.potential.home_rate, 2)}, jobs ×{' '}
+                {fmt(d().settings.potential.work_rate, 2)}, destination points ×{' '}
+                {fmt(d().settings.potential.dest_rate, 0)} (2022 NHTS, urban areas). Not fit to
+                ridership: where people live and go, however they travel today. Neighboring stops
+                share trips, so their totals overlap.
+              </>
+            ) : (
+              <>
+                0–100 against the best stop, weights fit to February 2024 boardings: what predicts
+                today's riders under today's network and car ownership, so places where most people
+                drive count less.
+              </>
+            )}
+          </p>
+        )}
+      </Show>
+
       <h2>Walk</h2>
       <Show when={data()}>
         {(d) => (
-          <>
-            <div class="segmented presets" role="radiogroup" aria-label="Walk and weight preset">
-              <button
-                role="radio"
-                aria-checked={activePreset() === 'default'}
-                onClick={() => {
-                  applyPreset('default')
-                }}
-              >
-                Default assumption
-              </button>
-              <button
-                role="radio"
-                aria-checked={activePreset() === 'best'}
-                onClick={() => {
-                  applyPreset('best')
-                }}
-              >
-                Best fit
-              </button>
-            </div>
-            <p class="hint">
-              Default assumption: the usual {d().settings.score.walk_min}-minute planning walk,
-              weight halving every {d().settings.score.half_life_min} minutes. Best fit: the walk
-              that predicts boardings best ({d().settings.score.best_fit.walk_min} minutes, halving
-              every {d().settings.score.best_fit.half_life_min}); it explains{' '}
-              {Math.round(d().settings.score.best_fit.cv_r2 * 100)} % of the variation in boardings
-              per trip, against {Math.round(d().settings.fit.cv_r2 * 100)} %. Each sets the weights
-              fit for it.
-            </p>
-          </>
+          <Show
+            when={model() === 'tuned'}
+            fallback={
+              <p class="hint">
+                Default: the usual {d().settings.score.walk_min}-minute planning walk, weight
+                halving every {d().settings.score.half_life_min} minutes.
+                <Show
+                  when={
+                    walkMin() !== d().settings.score.walk_min ||
+                    halfLife() !== d().settings.score.half_life_min
+                  }
+                >
+                  {' '}
+                  <button
+                    type="button"
+                    class="link"
+                    onClick={() => {
+                      setWalkMin(d().settings.score.walk_min)
+                      setHalfLife(d().settings.score.half_life_min)
+                    }}
+                  >
+                    Reset
+                  </button>
+                </Show>
+              </p>
+            }
+          >
+            <>
+              <div class="segmented presets" role="radiogroup" aria-label="Walk and weight preset">
+                <button
+                  role="radio"
+                  aria-checked={activePreset() === 'default'}
+                  onClick={() => {
+                    applyPreset('default')
+                  }}
+                >
+                  Default assumption
+                </button>
+                <button
+                  role="radio"
+                  aria-checked={activePreset() === 'best'}
+                  onClick={() => {
+                    applyPreset('best')
+                  }}
+                >
+                  Best fit
+                </button>
+              </div>
+              <p class="hint">
+                Default assumption: the usual {d().settings.score.walk_min}-minute planning walk,
+                weight halving every {d().settings.score.half_life_min} minutes. Best fit: the walk
+                that predicts boardings best ({d().settings.score.best_fit.walk_min} minutes,
+                halving every {d().settings.score.best_fit.half_life_min}); it explains{' '}
+                {Math.round(d().settings.score.best_fit.cv_r2 * 100)} % of the variation in
+                boardings per trip, against {Math.round(d().settings.fit.cv_r2 * 100)} %. Each sets
+                the weights fit for it.
+              </p>
+            </>
+          </Show>
         )}
       </Show>
       <Slider
@@ -126,43 +201,45 @@ export default function Settings(): JSX.Element {
         format={(v) => `${String(v)} min`}
       />
 
-      <h2>Score weights</h2>
-      <Slider
-        label="Homes"
-        value={weights().pop}
-        min={0}
-        max={5}
-        step={0.5}
-        onInput={(v) => setWeights({ ...weights(), pop: v })}
-      />
-      <Slider
-        label="Jobs"
-        value={weights().jobs}
-        min={0}
-        max={5}
-        step={0.5}
-        onInput={(v) => setWeights({ ...weights(), jobs: v })}
-      />
-      <Slider
-        label="Other destinations"
-        value={weights().dest}
-        min={0}
-        max={5}
-        step={0.5}
-        onInput={(v) => setWeights({ ...weights(), dest: v })}
-      />
-      <Slider
-        label="Transit connections"
-        value={weights().transit}
-        min={0}
-        max={5}
-        step={0.5}
-        onInput={(v) => setWeights({ ...weights(), transit: v })}
-      />
-      <p class="hint">
-        Homes, jobs and other destinations count what's within walking distance; transit connections
-        count the jobs and destinations reachable by riding from the stop.
-      </p>
+      <Show when={model() === 'tuned'}>
+        <h2>Score weights</h2>
+        <Slider
+          label="Homes"
+          value={weights().pop}
+          min={0}
+          max={5}
+          step={0.5}
+          onInput={(v) => setWeights({ ...weights(), pop: v })}
+        />
+        <Slider
+          label="Jobs"
+          value={weights().jobs}
+          min={0}
+          max={5}
+          step={0.5}
+          onInput={(v) => setWeights({ ...weights(), jobs: v })}
+        />
+        <Slider
+          label="Other destinations"
+          value={weights().dest}
+          min={0}
+          max={5}
+          step={0.5}
+          onInput={(v) => setWeights({ ...weights(), dest: v })}
+        />
+        <Slider
+          label="Transit connections"
+          value={weights().transit}
+          min={0}
+          max={5}
+          step={0.5}
+          onInput={(v) => setWeights({ ...weights(), transit: v })}
+        />
+        <p class="hint">
+          Homes, jobs and other destinations count what's within walking distance; transit
+          connections count the jobs and destinations reachable by riding from the stop.
+        </p>
+      </Show>
 
       <h2>Frequency</h2>
       <label class="field">

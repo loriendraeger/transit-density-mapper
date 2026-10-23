@@ -14,6 +14,7 @@ import { RouteChip } from '../components/StopDetail'
 import type { Route } from '../lib/contract'
 import type { Scored } from '../lib/scoring'
 import { fmt } from '../lib/units'
+import { model } from '../state/store'
 
 const features = tableFeatures({
   rowSortingFeature,
@@ -56,25 +57,27 @@ export default function StopTable(props: {
         </span>
       ),
     }),
+    // Score and its parts: trip ends a day (potential) or 0-100 (tuned). The rows are
+    // rescored when the model changes, so the accessors rerun.
     helper.accessor('score', {
       id: 'score',
-      header: 'Score',
+      header: () => (model() === 'potential' ? 'Potential' : 'Score'),
       sortFn: 'basic',
       cell: (c) => fmt(c.getValue(), 0),
     }),
-    helper.accessor((s) => s.norm.pop, {
+    helper.accessor((s) => (model() === 'potential' ? s.trips.pop : s.norm.pop), {
       id: 'pop',
       header: 'Homes',
       sortFn: 'basic',
       cell: (c) => fmt(c.getValue(), 0),
     }),
-    helper.accessor((s) => s.norm.jobs, {
+    helper.accessor((s) => (model() === 'potential' ? s.trips.jobs : s.norm.jobs), {
       id: 'jobs',
       header: 'Jobs',
       sortFn: 'basic',
       cell: (c) => fmt(c.getValue(), 0),
     }),
-    helper.accessor((s) => s.norm.dest, {
+    helper.accessor((s) => (model() === 'potential' ? s.trips.dest : s.norm.dest), {
       id: 'dest',
       header: 'Other dest.',
       sortFn: 'basic',
@@ -91,6 +94,16 @@ export default function StopTable(props: {
       header: 'Trips/h',
       sortFn: 'basic',
       cell: (c) => fmt(c.getValue(), 1),
+    }),
+    helper.accessor((s) => s.perBus ?? undefined, {
+      id: 'perbus',
+      header: 'Per bus',
+      sortFn: 'basic',
+      sortUndefined: 'last',
+      cell: (c) => {
+        const v = c.getValue()
+        return v === undefined ? '–' : `×${fmt(v, v < 10 ? 1 : 0)}`
+      },
     }),
     helper.accessor((s) => s.adds ?? undefined, {
       id: 'adds',

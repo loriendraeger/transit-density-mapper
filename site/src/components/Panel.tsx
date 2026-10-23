@@ -9,6 +9,8 @@ import {
   GENERATOR_LABELS,
   GENERATORS,
   MODE,
+  PERBUS_BREAKS,
+  POTENTIAL_BREAKS,
   RIDERS_BREAKS,
   RIDERS_RAMP,
   SCORE_BREAKS,
@@ -22,6 +24,7 @@ import {
   densities,
   densityOpacity,
   loadError,
+  model,
   selected,
   setBlobOpacity,
   setDensities,
@@ -119,39 +122,62 @@ function Layers(): JSX.Element {
             setStopColor(e.currentTarget.value as StopColor)
           }}
         >
-          <option value="score">Catchment score</option>
+          <option value="score">
+            {model() === 'potential' ? 'Potential (trip ends a day)' : 'Catchment score'}
+          </option>
           <option value="freq">Trips per hour</option>
+          <option value="perbus">Potential per bus</option>
           <option value="transit">Transit connections</option>
           <option value="riders">Riders vs. expected</option>
           <option value="adds">What it adds over neighbors</option>
         </select>
       </label>
+      <Show when={stopColor() === 'score' && model() === 'potential'}>
+        <Legend
+          ramp={SCORE_RAMP[MODE]}
+          breaks={POTENTIAL_BREAKS}
+          format={(v) => `${String(v / 1000)}k`}
+          unit="Trip ends a day by every mode within the walk, nearer counting more. Neighboring stops share trips. Circle size: trips per hour."
+        />
+      </Show>
+      <Show when={stopColor() === 'score' && model() === 'tuned'}>
+        <Legend
+          ramp={SCORE_RAMP[MODE]}
+          breaks={SCORE_BREAKS}
+          unit="Score (0–100), tuned to today's riders. Circle size: trips per hour."
+        />
+      </Show>
+      <Show when={stopColor() === 'freq'}>
+        <Legend
+          ramp={SCORE_RAMP[MODE]}
+          breaks={FREQ_BREAKS}
+          unit="Trips per hour. Circle size: trips per hour."
+        />
+      </Show>
+      <Show when={stopColor() === 'transit'}>
+        <Legend
+          ramp={SCORE_RAMP[MODE]}
+          breaks={SCORE_BREAKS}
+          unit="Transit connections (0–100 against the best stop): jobs and destinations reachable by riding, nearer counting more. Circle size: trips per hour."
+        />
+      </Show>
       <Show when={stopColor() === 'adds'}>
         <Legend
           ramp={SCORE_RAMP[MODE]}
           breaks={ADDS_BREAKS}
           format={(v) => String(Math.round(v * 100))}
-          unit="Percent of the stop's catchment (10-minute walk, current weights) that no other stop on its routes serves as well. Low: neighbors cover it. Hollow: no data."
+          unit={`Percent of the stop's catchment (10-minute walk, ${model() === 'potential' ? 'in trip ends' : 'current weights'}) that no other stop on its routes serves as well. Low: neighbors cover it. Hollow: no data.`}
         />
       </Show>
-      <Show
-        when={stopColor() === 'riders'}
-        fallback={
-          <Show when={stopColor() !== 'adds'}>
-            <Legend
-              ramp={SCORE_RAMP[MODE]}
-              breaks={stopColor() === 'freq' ? FREQ_BREAKS : SCORE_BREAKS}
-              unit={
-                stopColor() === 'score'
-                  ? 'Score (0–100). Circle size: trips per hour.'
-                  : stopColor() === 'transit'
-                    ? 'Transit connections (0–100 against the best stop): jobs and destinations reachable by riding, nearer counting more. Circle size: trips per hour.'
-                    : 'Trips per hour. Circle size: trips per hour.'
-              }
-            />
-          </Show>
-        }
-      >
+      <Show when={stopColor() === 'perbus'}>
+        <Legend
+          ramp={RIDERS_RAMP[MODE]}
+          breaks={PERBUS_BREAKS}
+          format={(v) => ({ 0.25: '¼', 0.5: '½', 1.25: '1¼' })[v] ?? String(v)}
+          unit="Potential (trip ends a day, all modes) per weekday bus, times the median stop's. Blue: many trips nearby for the service it gets; red: few. Hollow: no weekday service."
+        />
+      </Show>
+      <Show when={stopColor() === 'riders'}>
         <Legend
           ramp={RIDERS_RAMP[MODE]}
           breaks={RIDERS_BREAKS}
