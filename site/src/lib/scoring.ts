@@ -93,8 +93,14 @@ export interface Scored {
   /** The active model's score: potential (trip ends a day) or the tuned 0-100 score. */
   score: number
   /** Potential per weekday bus (trip ends / departures per direction in the weekday
-   * periods), relative to the median stop; null without weekday service. */
+   * periods), relative to the median stop; null without weekday service and on campus
+   * (see perBusCampus). */
   perBus: number | null
+  /** A campus stop (stop.special 'campus'): no per-bus ratio. Campus circulators (the
+   * fare-free 80) carry class-to-class and dorm-to-class trips the potential can't see,
+   * even with school trips by enrollment, so these stops would all read as over-served
+   * (owner 2026-10-23; the ridership fit leaves them out for the same reason). */
+  perBusCampus: boolean
   /** Trips per hour in the chosen period (per direction, all routes). */
   freq: number
   /** Observed / expected weekday boardings (ridersRatio); null without data. */
@@ -273,7 +279,8 @@ export function scoreAll(data: StopsFile, s: Settings): Scored[] {
       trips,
       potential,
       score: s.model === 'potential' ? potential : score,
-      perBus: deps > 0 ? potential / deps : null,
+      perBus: deps > 0 && !stop.special.includes('campus') ? potential / deps : null,
+      perBusCampus: stop.special.includes('campus'),
       freq: stopFreq(stop, s),
       riders: ridersRatio(stop, data.settings.fit.ratio_k),
       adds: adds(stop),

@@ -166,7 +166,8 @@ export default function About(): JSX.Element {
               potential describes the place, not today's service. <strong>Potential per bus</strong>{' '}
               (a stop color and table column) divides it by weekday departures per direction,
               against the median stop: high where many trips are nearby for the service the stop
-              gets.
+              gets. Campus stops are left out: campus buses carry dorm-to-class and class-to-class
+              trips the potential can't see, even with students counted by enrollment.
             </p>
             <p>
               <strong>Tuned to today's riders</strong> adds a fourth component, transit connections

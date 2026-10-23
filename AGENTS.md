@@ -362,7 +362,8 @@ exports in EPSG:4326.
   (much service for the trips nearby) ↔ gray ↔ teal (under-served), breaks ×¼–×4
   around the median stop (owner 2026-10-22: not the riders ramp, so blue/red keep one
   meaning) and a "Per bus" column: potential ÷ weekday departures per
-  direction (peak + off-peak windows; `weekdayDepartures()`); hollow without service.
+  direction (peak + off-peak windows; `weekdayDepartures()`); hollow without service
+  and at campus stops (see Open questions).
 - **Settings**: Score model; Walk (in tuned mode: Default assumption / Best fit buttons;
   in potential mode: a reset link), walk limit 5–20, half-life 1–20; in tuned mode four
   weight sliders; the service period.
@@ -531,9 +532,10 @@ Things learned the hard way; check these before debugging the same problem again
   ~16,000 school trip ends a day, but Observatory at Elm would need ~34,000 to look
   median. The national college rate (0.34 a day, mostly commuter and part-time
   students, averaged over the year) misses a residential campus's class-to-class and
-  dorm-to-class trips that the fare-free 80 carries. Options discussed: mark campus
-  stops special in the per-bus view (like the fit), a residential-campus rate, or leave
-  the campus routes out of per-bus departures.
+  dorm-to-class trips that the fare-free 80 carries. **Owner's pick (2026-10-23): campus
+  stops get no per-bus ratio** (hollow, with an explanation; `perBusCampus` in
+  `scoring.ts`), as the fit leaves them out. Not tried: a residential-campus rate (the
+  NHTS sample is too thin to estimate one), dropping routes 80–84 from per-bus.
 - **Faster blobs (offered, not done)**: build each band from the previous band plus the
   new pieces (incremental union) instead of a full union per band; the unions are ~70 %
   of the blob export (~60 s). Output would differ by up to ~1 m in places, so verify by

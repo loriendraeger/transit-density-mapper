@@ -175,7 +175,7 @@ function Layers(): JSX.Element {
           ramp={PERBUS_RAMP[MODE]}
           breaks={PERBUS_BREAKS}
           format={(v) => ({ 0.25: '¼', 0.5: '½', 1.25: '1¼' })[v] ?? String(v)}
-          unit="Potential (trip ends a day, all modes) per weekday bus, times the median stop's. Teal: many trips nearby for the service it gets (under-served); brown: much service for the trips nearby. Hollow: no weekday service."
+          unit="Potential (trip ends a day, all modes) per weekday bus, times the median stop's. Teal: many trips nearby for the service it gets (under-served); brown: much service for the trips nearby. Hollow: no weekday service, or a campus stop (campus buses carry trips the potential can't see)."
         />
       </Show>
       <Show when={stopColor() === 'riders'}>

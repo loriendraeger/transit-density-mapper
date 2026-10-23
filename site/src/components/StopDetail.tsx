@@ -193,6 +193,13 @@ export default function StopDetail(props: { s: Scored }): JSX.Element {
           </p>
         )}
       </Show>
+      <Show when={props.s.perBusCampus}>
+        <p class="hint">
+          Potential per bus isn't shown for campus stops: campus buses (like the fare-free 80) carry
+          dorm-to-class and class-to-class trips that the potential can't see, so every campus stop
+          would look over-served.
+        </p>
+      </Show>
 
       <Show when={stop().riders}>
         {(r) => (
