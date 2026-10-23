@@ -36,7 +36,7 @@ export const GENERATOR_LABELS: Record<Generator, { label: string; unit: string }
   jobs: { label: 'Jobs', unit: 'Jobs per km²' },
   dest: {
     label: 'Other destinations',
-    unit: 'Destination points per km² (places weighted by trip purpose; shops and clinics by jobs)',
+    unit: 'Destination points per km² (places weighted by trip purpose; shops and clinics by jobs; schools and colleges by enrollment)',
   },
 }
 

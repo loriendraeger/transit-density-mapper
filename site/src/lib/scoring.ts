@@ -62,10 +62,14 @@ export interface Settings {
   periodWeights: Record<Period, number>
   /** Destination points per retail/health-care job (stops.json settings.score). */
   shopJobsWeight: number
+  /** Destination points per school trip end (stops.json settings.score). */
+  schoolWeight: number
 }
 
 /** Pseudo-category for the retail and health-care jobs part of other destinations. */
 export const SHOP_JOBS = 'shops and clinics'
+/** Pseudo-category for school trip ends (enrollment), part of other destinations. */
+export const SCHOOLS = 'schools and colleges'
 
 export interface Components {
   pop: number
@@ -108,6 +112,7 @@ export function rawComponents(
   bw: number[],
   poiCategories: string[],
   shopJobsWeight: number,
+  schoolWeight: number,
 ): Components {
   function sum(id: string): number {
     const v = stop.bands[id] ?? []
@@ -122,6 +127,7 @@ export function rawComponents(
     categories[cat] = sum(cat)
   }
   categories[SHOP_JOBS] = sum('shopjobs') * shopJobsWeight
+  categories[SCHOOLS] = sum('school') * schoolWeight
   const dest = Object.values(categories).reduce((a, b) => a + b, 0)
   return { pop: sum('pop'), jobs: sum('jobs'), dest, categories, transit: 0 }
 }
@@ -196,7 +202,7 @@ export function scoreAll(data: StopsFile, s: Settings): Scored[] {
   const bw = bandWeights(s.decay, s.walkMin, nBands, data.settings.band_min)
   const cats = data.measures.filter((m) => m.kind === 'poi').map((m) => m.id)
   const raws = data.stops.map((stop) => ({
-    ...rawComponents(stop, bw, cats, s.shopJobsWeight),
+    ...rawComponents(stop, bw, cats, s.shopJobsWeight, s.schoolWeight),
     transit: transitRaw(stop, data.settings.score.access, s.shopJobsWeight),
   }))
   function max(k: 'pop' | 'jobs' | 'dest' | 'transit'): number {
@@ -213,9 +219,14 @@ export function scoreAll(data: StopsFile, s: Settings): Scored[] {
   // trip ends (potential), or each component normalized by the largest full total (as
   // the tuned score is) with the current weights.
   const kShop = data.settings.score.shop_jobs_weight
+  const kSchool = data.settings.score.school_weight
   function ov(stop: Stop, key: 'full' | 'added'): [number, number, number] {
     const o = stop.overlap?.[key] ?? {}
-    return [o.pop ?? 0, o.jobs ?? 0, (o.poi ?? 0) + kShop * (o.shopjobs ?? 0)]
+    return [
+      o.pop ?? 0,
+      o.jobs ?? 0,
+      (o.poi ?? 0) + kShop * (o.shopjobs ?? 0) + kSchool * (o.school ?? 0),
+    ]
   }
   const ovMax = [0, 1, 2].map((i) =>
     Math.max(1e-9, ...data.stops.map((stop) => ov(stop, 'full')[i] ?? 0)),

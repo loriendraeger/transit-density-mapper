@@ -142,6 +142,7 @@ export const settings = createRoot(() =>
     period: period(),
     periodWeights: periodWeights(),
     shopJobsWeight: data()?.settings.score.shop_jobs_weight ?? 0,
+    schoolWeight: data()?.settings.score.school_weight ?? 0,
   })),
 )
 

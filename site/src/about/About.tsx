@@ -9,7 +9,7 @@ const PURPOSE_LABELS: Record<string, string> = {
   shop: 'shopping',
   food: 'meals',
   civic: 'errands, civic and religious',
-  education: 'school and childcare',
+  childcare: 'childcare',
   exercise: 'exercise',
   leisure: 'recreation (parks, venues, museums, bars)',
   health: 'health care',
@@ -117,6 +117,25 @@ export default function About(): JSX.Element {
           </Show>{' '}
           Within a group, places are weighted by kind (a supermarket more than a convenience store;
           parks by area). Large places count from their nearest edge.
+        </li>
+        <li>
+          <strong>Schools and colleges</strong> count by enrollment, the way travel-demand models
+          treat them: public and private K-12 schools and colleges from the National Center for
+          Education Statistics (fall headcount, leaving out students enrolled only online), times
+          the school trips a student makes in the travel survey
+          <Show when={data()}>
+            {(d) => (
+              <>
+                {' '}
+                ({fmt(d().settings.potential.school_k12_rate, 2)} trip ends a day per K-12 student,{' '}
+                {fmt(d().settings.potential.school_college_rate, 2)} per college student: averaged
+                over the whole year, and college students come to campus less often)
+              </>
+            )}
+          </Show>
+          . A school counts at its grounds; a college's students spread over its campus buildings by
+          floor area, since they go to classrooms, not to the edge of the campus. They're part of
+          other destinations, alongside the places above.
         </li>
       </ul>
 

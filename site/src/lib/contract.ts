@@ -8,7 +8,7 @@ export const DAY_TYPES: DayType[] = ['weekday', 'saturday', 'sunday']
 
 export interface Measure {
   id: string
-  kind: 'pop' | 'jobs' | 'shopjobs' | 'poi'
+  kind: 'pop' | 'jobs' | 'shopjobs' | 'school' | 'poi'
   label: string
   /** POI categories: number of places. */
   count?: number
@@ -51,8 +51,8 @@ export interface Stop {
    * reach the stop. */
   access: Record<'jobs' | 'osm' | 'shopjobs' | 'homes', number[]> | null
   overlap: {
-    full: Partial<Record<'pop' | 'jobs' | 'shopjobs' | 'poi', number>>
-    added: Partial<Record<'pop' | 'jobs' | 'shopjobs' | 'poi', number>>
+    full: Partial<Record<'pop' | 'jobs' | 'shopjobs' | 'school' | 'poi', number>>
+    added: Partial<Record<'pop' | 'jobs' | 'shopjobs' | 'school' | 'poi', number>>
     residents: number
     residents_far: number
   } | null
@@ -66,6 +66,8 @@ export interface ScoreSettings {
   weights: ScoreWeights
   /** Other destinations = POI points + this x retail and health-care jobs. */
   shop_jobs_weight: number
+  /** ... + this x school trip ends a day (NCES enrollment x NHTS rate; not fit). */
+  school_weight: number
   /** Transit connections: gravity over Stop.access bands (pipeline access.py, fit.py). */
   access: {
     percentile: number
@@ -139,6 +141,10 @@ export interface StopsFile {
       home_rate: number
       work_rate: number
       dest_rate: number
+      /** School trip ends per student a day, K-12 and college (already applied to the
+       * school measure, which is in trip ends). */
+      school_k12_rate: number
+      school_college_rate: number
       r2: number
       cv_r2: number
     }

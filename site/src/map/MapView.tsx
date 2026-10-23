@@ -637,8 +637,9 @@ export default function MapView(): JSX.Element {
     // Density layers: the selected generators, in GENERATORS order, get the hex pieces
     // (slot 0, 1, 2) of the layer matching their count.
     /** A generator's density in a hex. Other destinations: the per-category point
-     * densities (d_<category>) plus retail/health-care jobs at the fitted points per job,
-     * the same mix the score uses. */
+     * densities (d_<category>) plus retail/health-care jobs at the fitted points per job
+     * and school trip ends at the points per school trip end, the same mix the score
+     * uses. */
     function densityValue(g: Generator): ExpressionSpecification {
       if (g !== 'dest') {
         return ['get', DENSITY_FIELD[g]]
@@ -650,6 +651,11 @@ export default function MapView(): JSX.Element {
         '*',
         d?.settings.score.shop_jobs_weight ?? 0,
         ['coalesce', ['get', 'shop_jobs_km2'], 0],
+      ])
+      terms.push([
+        '*',
+        d?.settings.score.school_weight ?? 0,
+        ['coalesce', ['get', 'school_km2'], 0],
       ])
       return ['+', 0, ...terms] as ExpressionSpecification
     }
