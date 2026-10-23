@@ -25,8 +25,10 @@ export default function About(): JSX.Element {
         within a short walk, and what riding from it connects to) and its transit density (how much
         is close by, and how often the bus comes). It measures where people live and go, however
         they travel today: a dense place where everyone drives is an opportunity, not low potential.
-        Everything adjustable (walk limit, half-life, weights, service period) is computed in your
-        browser from precomputed walking and transit travel times.
+        Two scores (below): <em>potential</em>, trips by every mode, the default; and one{' '}
+        <em>tuned to today's riders</em>. Everything adjustable (score, walk limit, half-life, the
+        tuned score's weights, service period) is computed in your browser from precomputed walking
+        and transit travel times.
       </p>
 
       <h2>Stops</h2>
@@ -166,16 +168,17 @@ export default function About(): JSX.Element {
       <Show when={data()}>
         {(d) => (
           <p>
-            What a stop connects to by riding: travel times from every stop to every 150 m hex,
-            walking and riding with transfers, for every departure minute from{' '}
+            What a stop connects to by riding, a component of the tuned score (potential shows it
+            alongside but leaves it out): travel times from every stop to every 150 m hex, walking
+            and riding with transfers, for every departure minute from{' '}
             {d().settings.score.access.departure_hour} to{' '}
             {d().settings.score.access.departure_hour + d().settings.score.access.window_hours} am
             on a weekday (computed with R5, the routing engine behind Conveyal). A rider who shows
             up at random waits about half the time between buses; one who plans around the schedule
-            barely waits, so the score uses the {d().settings.score.access.percentile}th-percentile
-            trip, which predicted ridership best. Jobs and destinations reached count less the
-            longer the trip (halving every {d().settings.score.access.half_life_min} minutes, none
-            past {d().settings.score.access.max_minutes}).{' '}
+            barely waits, so it uses the {d().settings.score.access.percentile}th-percentile trip,
+            which predicted ridership best. Jobs and destinations reached count less the longer the
+            trip (halving every {d().settings.score.access.half_life_min} minutes, none past{' '}
+            {d().settings.score.access.max_minutes}).{' '}
             {d().settings.score.access.dest_weight < 0.01
               ? 'In practice the fit counts jobs reached: destinations reached add nothing beyond them, since the two go together. '
               : d().settings.score.access.jobs_weight < 0.01
@@ -195,10 +198,11 @@ export default function About(): JSX.Element {
         each. <strong>What it adds over neighbors</strong> (a stop color option and in each stop's
         details) asks the stop-consolidation question instead: for each home, job and destination,
         how much closer is this stop than the nearest other stop on the same routes? A stop whose
-        neighbors are nearly as close adds little; the only stop for a neighborhood adds a lot.
-        Sharing each place among all the stops that reach it (so the totals add up) was tested too,
-        but it predicted ridership worse, likely because stops on different routes serve different
-        trips; the score keeps counting catchments in full.
+        neighbors are nearly as close adds little; the only stop for a neighborhood adds a lot. It's
+        counted in trip ends for potential and at the current weights for the tuned score, at the
+        default walk. Sharing each place among all the stops that reach it (so the totals add up)
+        was tested too, but it predicted ridership worse, likely because stops on different routes
+        serve different trips; the score keeps counting catchments in full.
       </p>
 
       <h2>Fit to ridership</h2>
@@ -206,14 +210,14 @@ export default function About(): JSX.Element {
         {(f) => (
           <>
             <p>
-              The default weights come from weekday boardings at each stop (Greater Madison MPO,
-              February 2024, estimated from farebox and bus-location records). Boardings depend
-              heavily on how often the bus comes, so the fit uses <em>boardings per trip</em>: the
-              score's own formula (a weighted sum of the catchment totals, plus a constant) fit on a
-              log scale. This is a simple form of the <em>direct ridership model</em> transit
-              agencies use. The same data chose how destinations are counted: trip-purpose shares
-              and sizing shops and clinics by jobs both predicted ridership better than hand-set
-              weights.
+              The tuned score's default weights come from weekday boardings at each stop (Greater
+              Madison MPO, February 2024, estimated from farebox and bus-location records).
+              Boardings depend heavily on how often the bus comes, so the fit uses{' '}
+              <em>boardings per trip</em>: the score's own formula (a weighted sum of the catchment
+              totals, plus a constant) fit on a log scale. This is a simple form of the{' '}
+              <em>direct ridership model</em> transit agencies use. The same data chose how
+              destinations are counted: trip-purpose shares and sizing shops and clinics by jobs
+              both predicted ridership better than hand-set weights.
             </p>
             <p>
               The fit explains {Math.round(f().cv_r2 * 100)} % of the variation in boardings per
@@ -222,7 +226,7 @@ export default function About(): JSX.Element {
               park-and-rides, the airport and transfer points (5+ routes) draw riders a walkshed
               can't see, so they were left out of the fit. The default assumption (a 10-minute walk,
               halving every 4 minutes) follows planning convention; the data favor shorter walks,
-              which the <em>Best fit</em> button applies with weights refit for it.
+              which the tuned score's <em>Best fit</em> button applies with weights refit for it.
             </p>
             <Show when={data()?.settings.potential}>
               {(p) => (
