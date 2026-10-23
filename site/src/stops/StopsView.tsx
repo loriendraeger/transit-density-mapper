@@ -3,7 +3,15 @@ import { createMemo, createSignal, type JSX, Show } from 'solid-js'
 
 import Settings from '../components/Settings'
 import StopDetail from '../components/StopDetail'
-import { data, flyTo, scored, selected, selectedId, setSelectedId } from '../state/store'
+import {
+  data,
+  flyTo,
+  scored,
+  selected,
+  selectedId,
+  setSelectedId,
+  setShowSpiderweb,
+} from '../state/store'
 import { pathFor } from '../state/url'
 import StopTable from './StopTable'
 
@@ -67,6 +75,7 @@ export default function StopsView(): JSX.Element {
               <button
                 class="primary"
                 onClick={() => {
+                  setShowSpiderweb(true)
                   navigate(pathFor('map'))
                   flyTo(s().stop.id)
                 }}

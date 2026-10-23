@@ -38,6 +38,7 @@ import {
   PLATFORMS_LAYER,
   POIS_LAYER,
   ROUTES_LAYER,
+  type Stop,
   WALK_LAYER,
 } from '../lib/contract'
 import { dataUrl } from '../lib/data'
@@ -475,12 +476,51 @@ export default function MapView(): JSX.Element {
     // The drawer opening or closing resizes the map; MapLibre keeps the center, which
     // shifts everything sideways. Keep the top-left corner in place instead, then pan
     // only as far as needed if the selected stop ended up hidden (owner 2026-10-21).
+    let pendingFly: Stop | null = null
+    function flyToStop(stop: Stop): void {
+      m.flyTo({ center: [stop.lon, stop.lat], zoom: Math.max(m.getZoom(), 14.5) })
+      loadCatchment(stop.id)
+        .then((c) => {
+          const band = c.bands.at(walkMin() - 1)
+          const coords = band?.coordinates.flat(2) ?? []
+          if (!coords.length || selectedId() !== stop.id) {
+            return
+          }
+          const xs = coords.map((p) => p[0])
+          const ys = coords.map((p) => p[1])
+          m.fitBounds(
+            [
+              [Math.min(...xs), Math.min(...ys)],
+              [Math.max(...xs), Math.max(...ys)],
+            ],
+            { padding: 40, maxZoom: 16 },
+          )
+        })
+        .catch((e: unknown) => {
+          console.error(e)
+        })
+    }
+
+    // On another tab the map is hidden (zero size): no panning to or from that, and a fly
+    // requested meanwhile waits until the map is shown (see flyRequest below).
     let lastSize = [m.getContainer().clientWidth, m.getContainer().clientHeight]
     m.on('resize', () => {
       const w = m.getContainer().clientWidth
       const h = m.getContainer().clientHeight
+      const wasHidden = lastSize[0] === 0 || lastSize[1] === 0
       const [dw, dh] = [lastSize[0] - w, lastSize[1] - h]
       lastSize = [w, h]
+      if (w === 0 || h === 0) {
+        return
+      }
+      if (wasHidden) {
+        if (pendingFly) {
+          const stop = pendingFly
+          pendingFly = null
+          flyToStop(stop)
+        }
+        return
+      }
       if (dw !== 0 || dh !== 0) {
         m.panBy([-dw / 2, -dh / 2], { duration: 0 })
       }
@@ -792,34 +832,20 @@ export default function MapView(): JSX.Element {
     })
 
     // Fly to a stop on request (table "show on map", or a shared link): head there
-    // right away, then frame its walkshed at the current limit once that's loaded.
+    // right away, then frame its walkshed at the current limit once that's loaded. While
+    // the map is hidden (another tab) it has no size to fly in, so the request waits for
+    // the resize that shows it.
     createEffect(
       on(flyRequest, (req) => {
         const stop = req ? data()?.stops.find((s) => s.id === req.id) : undefined
         if (!stop) {
           return
         }
-        m.flyTo({ center: [stop.lon, stop.lat], zoom: Math.max(m.getZoom(), 14.5) })
-        loadCatchment(stop.id)
-          .then((c) => {
-            const band = c.bands.at(walkMin() - 1)
-            const coords = band?.coordinates.flat(2) ?? []
-            if (!coords.length || selectedId() !== stop.id) {
-              return
-            }
-            const xs = coords.map((p) => p[0])
-            const ys = coords.map((p) => p[1])
-            m.fitBounds(
-              [
-                [Math.min(...xs), Math.min(...ys)],
-                [Math.max(...xs), Math.max(...ys)],
-              ],
-              { padding: 40, maxZoom: 16 },
-            )
-          })
-          .catch((e: unknown) => {
-            console.error(e)
-          })
+        if (m.getContainer().clientWidth === 0 || m.getContainer().clientHeight === 0) {
+          pendingFly = stop
+          return
+        }
+        flyToStop(stop)
       }),
     )
   }

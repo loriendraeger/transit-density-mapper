@@ -17,9 +17,14 @@ import {
   setModel,
   setPeriod,
   setSelectedId,
+  setShowTransitReach,
+  setStopColor,
   setView,
   setWalkMin,
   setWeights,
+  showTransitReach,
+  type StopColor,
+  stopColor,
   type View,
   walkMin,
   weights,
@@ -36,8 +41,12 @@ import {
 //                             (default: fitted; a missing last one keeps its default)
 //   period=peak|offpeak|saturday|sunday   (default: weighted aggregate)
 //   density=pop,jobs,dest | none   hex layers shown (default: pop)
+//   color=freq|perbus|transit|riders|adds   what stops are colored by (default: score)
+//   reach=1                   the selected stop's transit reach layer on
 
 type Params = Record<string, string | undefined>
+
+const STOP_COLORS: StopColor[] = ['score', 'freq', 'perbus', 'transit', 'riders', 'adds']
 
 function num(s: string | undefined, lo: number, hi: number): number | null {
   if (s === undefined || s === '') {
@@ -65,6 +74,8 @@ function applyParams(p: Params): void {
   setWeights(w)
 
   setPeriod(PERIODS.includes(p.period as Period) ? (p.period as Period) : 'aggregate')
+  setStopColor(STOP_COLORS.includes(p.color as StopColor) ? (p.color as StopColor) : 'score')
+  setShowTransitReach(p.reach === '1')
   const wanted = (p.density ?? 'pop').split(',')
   setDensities(GENERATORS.filter((g) => wanted.includes(g)))
 
@@ -105,6 +116,8 @@ export function currentParams(): Params {
     w: weightsAreDefault() ? undefined : [w.pop, w.jobs, w.dest, w.transit].map(String).join(','),
     period: period() === 'aggregate' ? undefined : period(),
     density: densityParam(),
+    color: stopColor() === 'score' ? undefined : stopColor(),
+    reach: showTransitReach() ? '1' : undefined,
   }
 }
 
