@@ -125,6 +125,25 @@ def test_fit_is_usable(db):
     assert 0 < p["cv_r2"] <= p["r2"] < 1
 
 
+def test_potential_rates_plausible(db):
+    """Trip ends per person a day are in the NHTS's usual range (urban Americans make
+    about 3.5 trips, so 7 ends), and destination points are balanced to residents: the
+    study area's destinations draw destination ends per person x residents."""
+    r = dict(db.execute("SELECT key, value FROM gen.trip_rates").fetchall())
+    assert 1.5 < r["home_per_person"] < 2.5
+    assert 0.8 < r["work_per_worker"] < 1.5
+    assert 1.2 < r["dest_per_person"] < 2.5
+    p = dict(db.execute("SELECT key, value FROM valid.fit_params").fetchall())
+    tot = dict(
+        db.execute(
+            "SELECT kind, sum(value) FROM (SELECT kind, gen_id, min(value) AS value "
+            "FROM gen.points GROUP BY 1, 2) g GROUP BY 1"
+        ).fetchall()
+    )
+    dest_ends = p["pot_dest_rate"] * (tot["poi"] + p["shop_jobs_weight"] * tot["shopjobs"])
+    assert dest_ends == pytest.approx(r["dest_per_person"] * tot["pop"], rel=1e-9)
+
+
 def test_destination_totals_follow_trip_shares(db):
     """Each destination group's total weight matches its share of trips (NHTS)."""
     worst = scalar(

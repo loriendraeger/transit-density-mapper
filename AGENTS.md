@@ -28,11 +28,14 @@ Two views on one static site:
 2. **Stop analysis tab.** One row per (merged) stop: score and its components,
    frequency, riders vs. expected, overlap; each stop has a detail view.
 
-Users can tinker with few things (owner 2026-10-21: "very reasonable defaults, fewer
-sliders"): the **walk limit** and **half-life**, the four score **weights** (homes, jobs,
-other destinations, transit connections), two presets that set all six (**Default
-assumption** and **Best fit**, both fit to ridership), the **service period**, the stop
-coloring and the map layers. Destination categories, period weights and the transit
+Two score models (2026-10-22): **Potential (all modes)**, the default, counts trip ends
+a day by every mode within the walk at fixed NHTS rates (no fitting); **Tuned to today's
+riders** is the weighted 0–100 score fit to boardings. Users can tinker with few things
+(owner 2026-10-21: "very reasonable defaults, fewer sliders"): the **score model**, the
+**walk limit** and **half-life**, and in tuned mode the four score **weights** (homes,
+jobs, other destinations, transit connections) and two presets that set all six
+(**Default assumption** and **Best fit**, both fit to ridership), the **service period**,
+the stop coloring and the map layers. Destination categories, period weights and the transit
 settings are fixed in config. Everything adjustable is computed in the browser from
 precomputed data.
 
@@ -45,8 +48,9 @@ Two halves, as in `../public-private-shore`:
 **Status (2026-10-22):** milestones 1–6 done. After the first build (2026-10-19), the
 owner worked through `docs/assumptions-critique.md` (2026-10-20 to 22): per-direction
 frequency, ridership calibration, destination totals from trip purposes, current
-population, fewer controls with fitted defaults, overlap with neighbors, and transit
-connections with R5 (all recorded below). The owner hasn't signed off on the data yet.
+population, fewer controls with fitted defaults, overlap with neighbors, transit
+connections with R5, and a mode-neutral potential model as the default score (all
+recorded below). The owner hasn't signed off on the data yet.
 The full pipeline runs from `make` (a few minutes from scratch after downloads, plus
 ~20 min for the first R5 run; ~1 min after a destination-weight change; seconds when
 nothing changed), and the site runs locally (`make site`). Next steps: [Open questions](#open-questions). `site/public/data/` is **gitignored until the owner is happy with it**,
@@ -93,7 +97,8 @@ A **for-fun learning project**. The owner is interested in GIS and transit.
 | Transit connections (2026-10-21) | A **fourth score term**: jobs + other destinations reachable by **transit** (R5 via r5py; walk + ride + transfers), **gravity**: each discounted by 0.5^(t / 20 min), nothing past **60 min**; weekday **7–9 am**, every departure minute, **10th-percentile** travel time (owner: planned trips shouldn't pay half the headway; R5/Conveyal practice; the fit preferred p10 > p25 > median). Jobs and destinations reached fold into one term at the fitted ratio (currently all jobs: destinations reached add nothing once jobs are in). Reverse measure: residents who can reach the stop (populated 450 m cells → stops), shown in the drawer only. CV R² 0.160 → **0.210** (default), 0.200 → **0.244** (best fit). Owner chose it as a score term with its own slider; the map shows the selected stop's **transit isochrone** (hexes by minutes, a layer toggle). |
 | Overlap with neighbors (2026-10-21) | **Marginal value**, route-aware: per home/job/destination within the default walk, its decay weight at this stop minus at the quickest other stop **sharing a route** (`catch.marginal`, `55_catchments/20_overlap.sql`); shown as a stop color ("What it adds over neighbors", share of the catchment at current weights), a drawer section (also residents who'd walk 2+ min more) and a table column. Median stop adds ~9 %. **Split catchments** (each place shared among all stops reaching it by decay weight) were tested as the score's basis and predicted boardings worse in 20/20 splits (default CV 0.164 → 0.139, best fit 0.198 → 0.154): the score keeps full catchments. Origin/destination split declined (round trips). |
 | Map behavior (2026-10-21) | Hex opacity doesn't change when a stop is selected. Opening/closing the drawer keeps the map's top-left corner fixed (a `resize` handler pans back MapLibre's keep-the-center resize) and pans only if the selected stop would be hidden. |
-| Calibration (2026-10-20; revised 2026-10-21) | Fit the score's weights to **observed boardings per trip** (MPO, Feb 2024) at the fixed walk/decay; the fit **is the default** (the preset button went away with the walk/decay sliders). Special stops (schools, campus, park-and-rides, airport, transfer points) found from **OSM + stop names**, left out of the fit. Leftovers shown as a **"Riders vs. expected" stop color** (owner's picks among options). |
+| Calibration (2026-10-20; revised 2026-10-21, 2026-10-22) | Fit the score's weights to **observed boardings per trip** (MPO, Feb 2024) at the fixed walk/decay; the fit is the default of the **tuned** model (since 2026-10-22 the site's default is the potential model, below). Special stops (schools, campus, park-and-rides, airport, transfer points) found from **OSM + stop names**, left out of the fit. Leftovers shown as a **"Riders vs. expected" stop color** (owner's picks among options). |
+| Potential model (2026-10-22) | Addresses the critique's tension between the mode-neutral goal and weights fit to today's riders (which discount places where people drive). **Two models, potential the default**; "Tuned to today's riders" is a toggle with today's weights and presets; riders vs. expected stays on the fit. Owner's choices among options: **absolute trip ends** (not NHTS shares as slider weights, not the MPO travel model for now); rates from the **2022 NHTS** urban trips (both ends of every trip): **1.96 home ends per resident** (visits to friends' homes included), **1.01 work ends per job** (per worker; in-commuters' trips are real), **destination points balanced to residents** (study-area points × rate = 1.79 destination ends per resident × residents → 97.4 per point); drop-offs, changing mode, "something else" (6 %) unplaced. Shop jobs keep the **fitted 0.022 points per job** (it only splits the destination total). **Transit connections and frequency stay out** (potential describes the place); controls: walk limit and half-life only. Display in **trip ends a day**, fixed breaks 1k/2k/4k/8k; "What it adds" follows the active model. New stop color **potential per bus** (÷ weekday departures per direction, vs. the median stop). Scoreboard as a check only: CV R² **0.154** vs. 0.160 for the fitted walk catchment (no transit term). |
 | Site data in git (2026-10-19) | `site/public/data/` is **gitignored** until the owner is happy with it. |
 | Catchment file (2026-10-19) | All stops' blobs and spiderwebs in **one file**, `catchments.bin` (owner preference over one file per stop): a JSON index of byte ranges, then one raw-deflate record per stop (varint delta-encoded edge ids and coordinates, walk times as bytes in 10 s steps). The site fetches the index once and each selected stop's bytes with an HTTP range request, like PMTiles. 7.9 MB total (was 41 MB as JSON); ~9 kB per stop. Tried and rejected: storing the blob as non-overlapping rings (bigger: every boundary is stored twice). |
 
@@ -326,13 +331,24 @@ exports in EPSG:4326.
   sidebar, detail panel with "Show walkshed on map".
 - **What it adds over neighbors**: a "Stops colored by" option (score ramp, breaks 5/10/
   20/40 %), a drawer section and an "Adds" table column; computed in `scoring.ts` from
-  `stops.json` `overlap` (full/added totals by group at the default walk) with the
-  current weights.
+  `stops.json` `overlap` (full/added totals by group at the default walk), in trip ends
+  (potential) or with the current weights (tuned).
 - **Riders vs. expected**: a "Stops colored by" option (diverging red ↔ gray ↔ blue,
   hollow = no data), a drawer section with observed/expected and special-stop reasons,
   a table column.
-- **Settings**: Walk (Default assumption / Best fit buttons, walk limit 5–20, half-life
-  1–20), three weight sliders (Homes, Jobs, Other destinations), the service period.
+- **Score model** (2026-10-22): a Score switch, Potential (all modes) / Tuned to today's
+  riders (`model` in `state/store.ts`, `?model=tuned`). `scoring.ts` computes both for
+  every stop: `trips`/`potential` (trip ends a day) and `norm`/the weighted score;
+  `score` is the active model's. In potential mode the map colors by `POTENTIAL_BREAKS`,
+  the drawer shows trip ends per component (bars = share of the stop's potential) and
+  the transit-connections score moves to "By transit"; the table's component columns
+  switch units.
+- **Potential per bus**: a "Stops colored by" option on the riders ramp (breaks ×¼–×4
+  around the median stop) and a "Per bus" column: potential ÷ weekday departures per
+  direction (peak + off-peak windows; `weekdayDepartures()`); hollow without service.
+- **Settings**: Score model; Walk (in tuned mode: Default assumption / Best fit buttons;
+  in potential mode: a reset link), walk limit 5–20, half-life 1–20; in tuned mode four
+  weight sliders; the service period.
   Presets come from `stops.json` `settings.score` (`preset()`, `applyPreset()`,
   `activePreset()` in `state/store.ts`); period weights are read-only. Riders vs.
   expected always uses the default assumption's fit.
@@ -374,7 +390,7 @@ The `fit` step (`70_validation/`, `fit.py`; runs in `make`, ~5 s, before `stops.
   half-life free, hand destination weights) chose a 6 min walk and 3 min half-life,
   R² 0.177. Jobs get little weight once shop jobs are in. Rank correlation with
   boardings: frequency 0.77; the catchment explains a modest share of riders per trip.
-- **Site**: default weights = the fit; stop color "Riders vs. expected" = (observed + 5)
+- **Site**: the tuned model's default weights = the fit; stop color "Riders vs. expected" = (observed + 5)
   ÷ (expected + 5), expected = the fit × weekday frequency (fixed, not the sliders);
   drawer section and table column. Report with correlations and the
   biggest residuals: `data/build/validation/ridership.md`.
@@ -390,6 +406,23 @@ The `fit` step (`70_validation/`, `fit.py`; runs in `make`, ~5 s, before `stops.
   per trip also depend on where the route goes and position on the line; residuals are
   where the placement question starts, not answers.
 
+### Potential (2026-10-22)
+
+- `transit purposes` (purposes.py) also counts **trip ends** in the NHTS trip file:
+  WHYFROM and WHYTO of every urban trip, mapped by `config/trip_purposes.csv`
+  `trip_end` (home, work, destination, blank = unplaced), weighted (WTTRDFIN / 365),
+  over weighted urban persons and workers from the person file → `gen.trip_rates`.
+  Urban: home 1.82 + visits 0.14 per person, work 0.53 per person (1.01 per worker),
+  destinations 1.79, unplaced 0.28.
+- `fit.py` turns destination ends per person into ends per destination point: study-area
+  residents × 1.79 ÷ (distinct OSM points + 0.022 × shop jobs). Note: a polygon
+  destination has one `gen.points` row per access point, so totals count each `gen_id`
+  once (summing rows overcounted 5×).
+- Potential = 1.96 × residents + 1.01 × jobs + 97.4 × destination points, each
+  decay-weighted as in the score. At the defaults the median stop has ~2,450 trip ends a
+  day (homes 35 %, jobs 17 %, destinations 48 % summed over stops; study-area trip
+  ends 44 / 16 / 40 %). Report section "Potential" in `ridership.md`.
+
 ## Testing
 
 `make test` (after `make`): pytest data checks in `pipeline/tests/`: every
@@ -397,7 +430,8 @@ platform in exactly one merged stop; the owner's two merge examples; BRT station
 whole; platforms snap within 50 m; dasymetric population sums to the census; estimated
 units outside Madison near the census; Route A peak frequency plausible per direction (one-way and two-way stop); a 10-minute
 walkshed area plausible; no arterial crossing without signal/marking evidence; > 90 % of
-boardings matched; fitted settings inside the slider ranges; destination group totals
+boardings matched; fitted settings inside the slider ranges; potential's trip-end rates
+plausible and destinations balanced to residents; destination group totals
 match the trip shares; a stop's added value within its full catchment.
 `npm run check` in `site/` runs Prettier, ESLint and tsc. No frontend test suite.
 
@@ -468,7 +502,11 @@ Things learned the hard way; check these before debugging the same problem again
   (declined by the owner, see Decisions);
   per-direction frequency instead of the ×2 rule (done 2026-10-20); separate
   origin/destination scores (declined: round trips) and a stop-overlap view (done
-  2026-10-21, see Decisions).
+  2026-10-21, see Decisions). The 2026-10-22 rewrite's first next step, "decide how
+  mode-neutral the defaults should be", is partly done: the potential model (Decisions)
+  is mode-neutral and in absolute units (its item 4); calibrating it on **all-mode trip
+  ends from the MPO's regional travel model** (by zone) is the remaining step, if the
+  MPO shares them.
 - **Faster blobs (offered, not done)**: build each band from the previous band plus the
   new pieces (incremental union) instead of a full union per band; the unions are ~70 %
   of the blob export (~60 s). Output would differ by up to ~1 m in places, so verify by
