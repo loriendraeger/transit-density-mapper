@@ -313,6 +313,16 @@ def stops_json() -> None:
                     "cv_r2": round(fit["best_cv_r2"], 3),
                 },
             },
+            # Potential (the site's default model; fit.py): trip ends a day by all modes
+            # per decay-weighted resident, job and destination point (NHTS rates, not
+            # fit to boardings); its R² against boardings is a check only.
+            "potential": {
+                "home_rate": round(fit["pot_home_rate"], 4),
+                "work_rate": round(fit["pot_work_rate"], 4),
+                "dest_rate": round(fit["pot_dest_rate"], 3),
+                "r2": round(fit["pot_r2"], 3),
+                "cv_r2": round(fit["pot_cv_r2"], 3),
+            },
             # Share of destination trips by purpose group (NHTS), which sets each
             # group's total destination points.
             "purpose_shares": {r["grp"]: r["share"] for r in shares},

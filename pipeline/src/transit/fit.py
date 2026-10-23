@@ -15,9 +15,17 @@ site folds both into one "other destinations" term, osm + k * shop_jobs, with k 
 fitted ratio (points per shop job). Special stops (valid.special: schools, campus,
 park-and-rides, airport, transfer points) and stops with little service stay out.
 
+The potential score (the site's default model) is not fit: it counts trip ends by all
+modes, residents x home ends per person + jobs x work ends per worker + destination
+points x dest_rate, with rates from the NHTS (purposes.py, gen.trip_rates). dest_rate
+balances destinations to residents: study-area destination points x dest_rate = study-
+area residents x destination ends per person. Its R² against boardings is reported as a
+check only.
+
 Outputs:
 - valid.fit_params: default slider weights (homes, jobs, destinations; 0-5, fitted and
-  rounded), k, R² (in-sample and cross-validated)
+  rounded), k, R² (in-sample and cross-validated); the potential's trip-end rates and
+  its R² as a check
 - valid.stop_fit: per stop, observed boardings and the fit's expected boardings
   (freq * (b0 + w . x)), the basis of the site's "riders vs. expected"
 - data/build/validation/ridership.md: the fit, a half-life comparison, correlations and
@@ -100,6 +108,17 @@ def load() -> dict:
             "count(*) FILTER (WHERE matched_by = 'nearest') AS by_nearest "
             "FROM valid.ridership"
         ).fetchone()
+        rates = {
+            r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM gen.trip_rates")
+        }
+        totals = {
+            r["kind"]: r["total"]
+            # A polygon destination has a row per access point: count each place once.
+            for r in conn.execute(
+                "SELECT kind, sum(value) AS total FROM (SELECT kind, gen_id, min(value) AS value "
+                "FROM gen.points GROUP BY 1, 2) g GROUP BY 1"
+            )
+        }
         unmatched_top = conn.execute(
             "SELECT stop_name, round(boardings)::int AS boardings FROM valid.ridership "
             "WHERE stop_id IS NULL ORDER BY boardings DESC LIMIT 5"
@@ -113,6 +132,8 @@ def load() -> dict:
         "boardings": boardings,
         "special": np.array([s["reasons"] is not None for s in stops]),
         "match": match,
+        "rates": rates,
+        "totals": totals,
         "unmatched_top": unmatched_top,
         "fit_min_freq": p["ridership"]["fit_min_freq"],
         "hl_range": p["ridership"]["fit_half_life_range"],
@@ -274,8 +295,27 @@ def fit_model(d: dict) -> dict:
         "r2": best["r2"],
         "cv_r2": cv_r2(best["x"][in_fit] / best["sc"], y),
     }
+    # Potential (not fit; a check): trip ends by all modes at the default walk.
+    rates, tot = d["rates"], d["totals"]
+    dest_rate = rates["dest_per_person"] * tot["pop"] / (tot["poi"] + k_shop * tot["shopjobs"])
+    pot_rates = np.array([rates["home_per_person"], rates["work_per_worker"], dest_rate])
+    pot_parts = x5[:, :3] * pot_rates
+    potential = pot_parts.sum(axis=1)
+    xp = potential[:, None] / max(potential[in_fit].max(), 1e-9)
+    pot_fit = {
+        "rates": pot_rates,
+        "parts": pot_parts,
+        "potential": potential,
+        "r2": fit_log(xp[in_fit], y)[1],
+        "cv_r2": cv_r2(xp[in_fit], y),
+        # Study-area trip ends by kind (all modes, per day), for the report.
+        "area_ends": pot_rates
+        * np.array([tot["pop"], tot["jobs"], tot["poi"] + k_shop * tot["shopjobs"]]),
+    }
+
     return {
         "in_fit": in_fit,
+        "potential": pot_fit,
         "r2": r2_5,
         "cv_r2": cv_r2(x4[in_fit] / sc4, y),
         "walk_only": walk_only,
@@ -317,6 +357,11 @@ def write_db(d: dict, m: dict) -> None:
         "best_w_transit": m["best_fit"]["weights"][3],
         "best_r2": m["best_fit"]["r2"],
         "best_cv_r2": m["best_fit"]["cv_r2"],
+        "pot_home_rate": m["potential"]["rates"][0],
+        "pot_work_rate": m["potential"]["rates"][1],
+        "pot_dest_rate": m["potential"]["rates"][2],
+        "pot_r2": m["potential"]["r2"],
+        "pot_cv_r2": m["potential"]["cv_r2"],
     }
     with psycopg.connect("") as conn:
         conn.execute("DROP TABLE IF EXISTS valid.fit_params")
@@ -352,6 +397,8 @@ def report(d: dict, m: dict) -> str:
     sw = m["site_weights"]
     ac = d["access_cfg"]
     score = (norm @ sw / sw.sum())[has]
+    pot = m["potential"]
+    pr, ae = pot["rates"], pot["area_ends"]
     names = [f"{s['name']} ({s['id']})" for s in d["stops"]]
     reasons = [", ".join(s["reasons"] or []) for s in d["stops"]]
     lines = [
@@ -413,6 +460,30 @@ def report(d: dict, m: dict) -> str:
         f"weights {', '.join(f'{v:g}' for v in m['best_fit']['weights'])}; R² "
         f"{m['best_fit']['r2']:.3f} (cross-validated {m['best_fit']['cv_r2']:.3f}).",
         "",
+        "## Potential (all modes; the site's default; not fit)",
+        "",
+        f"- Trip ends a day within the default walk = residents × {pr[0]:.2f} (home ends per "
+        f"person, visits included) + jobs × {pr[1]:.2f} (work ends per worker) + destination "
+        f"points × {pr[2]:.1f} (balanced so the study area's destinations draw "
+        f"{d['rates']['dest_per_person']:.2f} ends per resident). NHTS 2022, urban.",
+        f"- Study area, trip ends a day: homes {ae[0]:,.0f}, jobs {ae[1]:,.0f}, destinations "
+        f"{ae[2]:,.0f} ({', '.join(f'{100 * v / ae.sum():.0f} %' for v in ae)}).",
+        f"- As a predictor of boardings per trip/h (one term, log scale): R² "
+        f"{pot['r2']:.3f}, cross-validated {pot['cv_r2']:.3f}, vs. {m['walk_only']['cv_r2']:.3f} "
+        "for the fitted walk catchment alone. A check, not the target: potential counts "
+        "trips by every mode.",
+        f"- Median stop: {np.median(pot['potential']):,.0f} trip ends a day; shares of all "
+        "stops' potential: "
+        + ", ".join(
+            f"{k} {100 * v:.0f} %"
+            for k, v in zip(
+                ("homes", "jobs", "destinations"),
+                pot["parts"].sum(0) / pot["parts"].sum(),
+                strict=True,
+            )
+        )
+        + ".",
+        "",
         "Best R² per walk limit (half-life searched):",
         "",
         "| Walk limit (min) | Half-life (min) | R² |",
@@ -443,6 +514,8 @@ def report(d: dict, m: dict) -> str:
         ("Frequency (trips/h per direction)", freq, b),
         ("Expected boardings (fit × frequency)", m["expected"][has], b),
         ("Score vs. boardings per trip/h", score, b / np.maximum(freq, 0.1)),
+        ("Potential (trip ends, all modes)", pot["potential"][has], b),
+        ("Potential vs. boardings per trip/h", pot["potential"][has], b / np.maximum(freq, 0.1)),
     ]
     for label, xs, ys in rows:
         lines.append(f"| {label} | {spearmanr(xs, ys).statistic:.2f} |")

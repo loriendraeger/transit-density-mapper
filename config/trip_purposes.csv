@@ -1,21 +1,21 @@
-whyto,label,group
-01,Regular activities at home,
-02,Work from home (paid),
-03,Work at a non-home location,
-04,Work activity to drop-off/pickup someone/something,
-05,Other work-related activities,
-06,Attend school as a student,education
-07,Attend childcare or adult care,education
-08,Volunteer activities (not paid),civic
-09,Change type of transportation,
-10,Drop off/pick up someone (personal),
-11,Health care visit,health
-12,Buy meals,food
-13,Shop/buy/pick-up or return goods,shop
-14,Other family/personal errands,civic
-15,Recreational activities,leisure
-16,Exercise,exercise
-17,Visit friends or relatives,
-18,Rest or relaxation/vacation,lodging
-19,Religious or other community activities,civic
-97,Something else (specify),
+whyto,label,group,trip_end
+01,Regular activities at home,,home
+02,Work from home (paid),,home
+03,Work at a non-home location,,work
+04,Work activity to drop-off/pickup someone/something,,work
+05,Other work-related activities,,work
+06,Attend school as a student,education,destination
+07,Attend childcare or adult care,education,destination
+08,Volunteer activities (not paid),civic,destination
+09,Change type of transportation,,
+10,Drop off/pick up someone (personal),,
+11,Health care visit,health,destination
+12,Buy meals,food,destination
+13,Shop/buy/pick-up or return goods,shop,destination
+14,Other family/personal errands,civic,destination
+15,Recreational activities,leisure,destination
+16,Exercise,exercise,destination
+17,Visit friends or relatives,,home
+18,Rest or relaxation/vacation,lodging,destination
+19,Religious or other community activities,civic,destination
+97,Something else (specify),,

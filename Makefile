@@ -89,7 +89,8 @@ stops: network | tools-up
 generators: stops | tools-up
 	$(STAGE) generators '$(RUN) purposes && $(RUN) sql 40_generators' $(S)/stops \
 	    $(call SQL,40_generators) config/poi_categories.csv config/destination_groups.csv \
-	    config/trip_purposes.csv data/raw/nhts/tripv2pub.csv $(call PY,purposes) \
+	    config/trip_purposes.csv data/raw/nhts/tripv2pub.csv data/raw/nhts/perv2pub.csv \
+	    $(call PY,purposes) \
 	    $(D)/toml.generators $(D)/toml.walk $(D)/toml.study_area $(COMMON)
 
 # Walk times from every stop (pgRouting, in parallel), then per-edge times.
