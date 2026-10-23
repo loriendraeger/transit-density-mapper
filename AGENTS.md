@@ -50,12 +50,12 @@ owner worked through `docs/assumptions-critique.md` (2026-10-20 to 22): per-dire
 frequency, ridership calibration, destination totals from trip purposes, current
 population, fewer controls with fitted defaults, overlap with neighbors, transit
 connections with R5, and a mode-neutral potential model as the default score (all
-recorded below). The owner hasn't signed off on the data yet.
+recorded below), and enrollment-based schools (2026-10-23). **The owner signed off on
+the data on 2026-10-23**; `site/public/data/` is committed.
 The full pipeline runs from `make` (a few minutes from scratch after downloads, plus
 ~20 min for the first R5 run; ~1 min after a destination-weight change; seconds when
-nothing changed), and the site runs locally (`make site`). Next steps: [Open questions](#open-questions). `site/public/data/` is **gitignored until the owner is happy with it**,
-so the deploy workflow exists but would publish a site with no data. See
-[Milestones](#milestones) and [Open questions](#open-questions).
+nothing changed), and the site runs locally (`make site`). Next steps: the owner pushes for the first deploy, then check range requests on Pages
+(see [Milestones](#milestones)); [Open questions](#open-questions).
 
 **Code architecture:** see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): what each
 piece does and where to change things. Keep it current as code changes.
@@ -100,7 +100,7 @@ A **for-fun learning project**. The owner is interested in GIS and transit.
 | Calibration (2026-10-20; revised 2026-10-21, 2026-10-22) | Fit the score's weights to **observed boardings per trip** (MPO, Feb 2024) at the fixed walk/decay; the fit is the default of the **tuned** model (since 2026-10-22 the site's default is the potential model, below). Special stops (schools, campus, park-and-rides, airport, transfer points) found from **OSM + stop names**, left out of the fit. Leftovers shown as a **"Riders vs. expected" stop color** (owner's picks among options). |
 | Potential model (2026-10-22) | Addresses the critique's tension between the mode-neutral goal and weights fit to today's riders (which discount places where people drive). **Two models, potential the default**; "Tuned to today's riders" is a toggle with today's weights and presets; riders vs. expected stays on the fit. Owner's choices among options: **absolute trip ends** (not NHTS shares as slider weights, not the MPO travel model for now); rates from the **2022 NHTS** urban trips (both ends of every trip): **1.96 home ends per resident** (visits to friends' homes included), **1.01 work ends per job** (per worker; in-commuters' trips are real), **destination points balanced to residents** (study-area points × rate = 1.79 destination ends per resident × residents → 97.4 per point); drop-offs, changing mode, "something else" (6 %) unplaced. Shop jobs keep the **fitted 0.022 points per job** (it only splits the destination total). **Transit connections and frequency stay out** (potential describes the place); controls: walk limit and half-life only. Display in **trip ends a day**, fixed breaks 1k/2k/4k/8k; "What it adds" follows the active model. New stop color **potential per bus** (÷ weekday departures per direction, vs. the median stop). Scoreboard as a check only: CV R² **0.154** vs. 0.160 for the fitted walk catchment (no transit term). |
 | Schools by enrollment (2026-10-23) | Owner asked why campus stops looked over-served (potential per bus brown on campus; the fare-free 80 carries 23 % of systemwide boardings): OSM counted UW-Madison as one destination of 17 points (~1,700 trip ends a day), like Edgewood College. Now, as in travel-demand models, **school trips scale with enrollment**: NCES public (CCD) and private (PSS) K-12 and colleges (IPEDS fall 2023 headcount minus online-only) × NHTS school trip ends per student a day (**1.01 K-12, 0.34 college**; 365-day averages). School trips (purpose 06) leave the balanced destination pool (destination ends per resident 1.79 → 1.59; 97.4 → 89 per point); OSM schools/colleges only locate them; childcare stays a destination. Placement: K-12 at its school grounds (≤ 150 m), a college over its campus buildings by floor area (homes and sheds excluded; a campus belongs to its largest college). Tuned score and hexes: school trip ends fold into other destinations at 1 ÷ the potential's rate per point (not fit: school and campus stops are left out of the fit). Owner's picks among options: all schools via NCES, per-student rate, academic buildings, both models. Scoreboard, 20 splits: tuned 0.2101 → 0.2120, walk only 0.1566 → 0.1578, best fit 0.2409 → 0.2514 (all 20/20 better), potential 0.1555 → 0.1554 (flat). UW: 16,200 school trip ends over 198 buildings. **Campus per-bus barely moved** (21 → 19 brown campus stops): the national college rate can't explain the 80's volume (see Open questions). |
-| Site data in git (2026-10-19) | `site/public/data/` is **gitignored** until the owner is happy with it. |
+| Site data in git (2026-10-19; 2026-10-23) | `site/public/data/` was gitignored until the owner was happy with it; signed off 2026-10-23 and **committed** (58 MB: tiles, stops.json, catchments.bin, access.bin, basemap). Each data refresh is a new commit of the changed files; revisit (e.g. a GitHub Release for the tiles) if the repo history passes a few hundred MB. |
 | Catchment file (2026-10-19) | All stops' blobs and spiderwebs in **one file**, `catchments.bin` (owner preference over one file per stop): a JSON index of byte ranges, then one raw-deflate record per stop (varint delta-encoded edge ids and coordinates, walk times as bytes in 10 s steps). The site fetches the index once and each selected stop's bytes with an HTTP range request, like PMTiles. 7.9 MB total (was 41 MB as JSON); ~9 kB per stop. Tried and rejected: storing the blob as non-overlapping rings (bigger: every boundary is stored twice). |
 
 ## Tech stack
@@ -197,7 +197,7 @@ exports in EPSG:4326.
 │   │   └── 70_validation/    # ridership matched to stops, special stops (then `transit fit`)
 │   └── tests/                # pytest data checks (run after the pipeline)
 ├── data/                     # raw/ and build/ (gitignored)
-└── site/                     # Vite + Solid app; public/data/ is gitignored for now
+└── site/                     # Vite + Solid app; public/data/ = committed pipeline outputs
 ```
 
 ## Methods
@@ -511,8 +511,11 @@ Things learned the hard way; check these before debugging the same problem again
 4. ✅ **Trip generators.**
 5. ✅ **Scoring + Map tab.**
 6. ✅ **Stop analysis tab.**
-7. **Ship.** Owner review; commit `site/public/data/` (un-ignore it); first deploy;
-   check the size budget (see Open questions).
+7. **Ship.** ✅ Owner review (data signed off 2026-10-23); ✅ `site/public/data/`
+   committed. Left: first deploy (owner pushes); check on Pages that `catchments.bin`
+   and the PMTiles get 206 Partial Content and the base path `/transit-density-mapper/`
+   works; refresh the data when Metro's winter GTFS replaces the current feed (ends
+   2026-12-05).
 8. **Explain and polish.** Review the About page, performance on phones, more owner
    test cases.
 

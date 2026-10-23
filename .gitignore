@@ -25,5 +25,3 @@ node_modules/
 # OS
 .DS_Store
 
-# Site data (pipeline outputs). Ignored until the owner is happy with it.
-/site/public/data/
