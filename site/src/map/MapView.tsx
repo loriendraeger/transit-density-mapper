@@ -76,6 +76,7 @@ import {
   MODE,
   neutralFlavor,
   PERBUS_BREAKS,
+  PERBUS_RAMP,
   POTENTIAL_BREAKS,
   RIDERS_BREAKS,
   RIDERS_RAMP,
@@ -556,7 +557,7 @@ export default function MapView(): JSX.Element {
           by === 'riders'
             ? stepExpr(['get', 'ratio'], RIDERS_RAMP[mode], RIDERS_BREAKS)
             : by === 'perbus'
-              ? stepExpr(['get', 'perbus'], RIDERS_RAMP[mode], PERBUS_BREAKS)
+              ? stepExpr(['get', 'perbus'], PERBUS_RAMP[mode], PERBUS_BREAKS)
               : stepExpr(['get', 'adds'], SCORE_RAMP[mode], ADDS_BREAKS),
           surface,
         ])

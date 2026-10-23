@@ -10,6 +10,7 @@ import {
   GENERATORS,
   MODE,
   PERBUS_BREAKS,
+  PERBUS_RAMP,
   POTENTIAL_BREAKS,
   RIDERS_BREAKS,
   RIDERS_RAMP,
@@ -171,10 +172,10 @@ function Layers(): JSX.Element {
       </Show>
       <Show when={stopColor() === 'perbus'}>
         <Legend
-          ramp={RIDERS_RAMP[MODE]}
+          ramp={PERBUS_RAMP[MODE]}
           breaks={PERBUS_BREAKS}
           format={(v) => ({ 0.25: '¼', 0.5: '½', 1.25: '1¼' })[v] ?? String(v)}
-          unit="Potential (trip ends a day, all modes) per weekday bus, times the median stop's. Blue: many trips nearby for the service it gets; red: few. Hollow: no weekday service."
+          unit="Potential (trip ends a day, all modes) per weekday bus, times the median stop's. Teal: many trips nearby for the service it gets (under-served); brown: much service for the trips nearby. Hollow: no weekday service."
         />
       </Show>
       <Show when={stopColor() === 'riders'}>

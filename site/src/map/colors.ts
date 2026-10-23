@@ -17,6 +17,9 @@ export const MODE: Mode = window.matchMedia('(prefers-color-scheme: dark)').matc
 //   expected       3 steps per arm. Blue/red is the colorblind-safe diverging axis; it
 //                  shares blue with population, but stops are outlined circles above
 //                  the hexes, and the score's orange isn't shown at the same time.
+//   potential per  diverging brown (less potential per bus than the median stop) <->
+//   bus            gray <-> teal (more: under-served), 3 steps per arm; its own hues so
+//                  blue/red keep meaning riders vs. expected (2026-10-22)
 
 /** Stop score ramp, low -> high. Dark mode: low recedes into the dark surface. */
 export const SCORE_RAMP: Record<Mode, string[]> = {
@@ -90,8 +93,20 @@ export const SCORE_BREAKS = [20, 40, 60, 80]
  * fall below each; 2026-10-22). */
 export const POTENTIAL_BREAKS = [1000, 2000, 4000, 8000]
 
-/** Potential per weekday bus relative to the median stop, on the riders ramp: red = less
- * potential per bus than typical, blue = more (lots of trips nearby for the service). */
+/** Potential per weekday bus relative to the median stop, low -> high: 3 brown steps
+ * (much service for the trips nearby), gray (about the median), 3 teal (many trips nearby
+ * for the service: under-served). BrBG-style hues, the pair the map doesn't use yet.
+ * Validated light and dark (dataviz validator, 2026-10-22): each arm one hue with even
+ * lightness steps; opposite steps CVD ΔE 12-17, normal 17-24; the gray midpoint vs. the
+ * near steps CVD ΔE >= 7.4 light / 12.3 dark (riders ramp: 5.2 / 6.6). Like the riders
+ * ramp, the deepest teal is under the chroma floor (sRGB gamut) and the near steps are
+ * under 3:1 against the surface (stop circles have a surface ring and a legend). Teal
+ * over the population hexes: ΔE 13.6 light (the riders ramp reuses their blues). */
+export const PERBUS_RAMP: Record<Mode, string[]> = {
+  light: ['#7e4503', '#a95d00', '#cb7d34', '#b4b3ab', '#02a6ad', '#028389', '#026266'],
+  dark: ['#f4a25c', '#d5863e', '#b76b1c', '#5f5e59', '#009298', '#0bb0b8', '#17d0d8'],
+}
+/** Ratio breaks (potential per bus / the median stop's): x1/4, x1/2, x0.8 | x1.25, x2, x4. */
 export const PERBUS_BREAKS = RIDERS_BREAKS
 
 /** Density breaks per km2 (destinations: roughly the 60th-95th percentile of hexes,

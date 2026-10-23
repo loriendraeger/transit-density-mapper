@@ -343,8 +343,10 @@ exports in EPSG:4326.
   the drawer shows trip ends per component (bars = share of the stop's potential) and
   the transit-connections score moves to "By transit"; the table's component columns
   switch units.
-- **Potential per bus**: a "Stops colored by" option on the riders ramp (breaks ×¼–×4
-  around the median stop) and a "Per bus" column: potential ÷ weekday departures per
+- **Potential per bus**: a "Stops colored by" option on its own diverging ramp, brown
+  (much service for the trips nearby) ↔ gray ↔ teal (under-served), breaks ×¼–×4
+  around the median stop (owner 2026-10-22: not the riders ramp, so blue/red keep one
+  meaning) and a "Per bus" column: potential ÷ weekday departures per
   direction (peak + off-peak windows; `weekdayDepartures()`); hollow without service.
 - **Settings**: Score model; Walk (in tuned mode: Default assumption / Best fit buttons;
   in potential mode: a reset link), walk limit 5–20, half-life 1–20; in tuned mode four
@@ -358,7 +360,8 @@ exports in EPSG:4326.
 - Colors (`map/colors.ts`, checked with the dataviz validator, light and dark): orange
   for scores; blue, green, yellow for the three generators; violet for catchments;
   red ↔ blue diverging for riders vs. expected (magenta ↔ aqua was tried to avoid blue
-  but fails CVD: deuteranopes can't tell the arms apart).
+  but fails CVD: deuteranopes can't tell the arms apart). Brown ↔ teal for potential per bus
+  (`PERBUS_RAMP`; validation notes in `colors.ts`).
 - **Transit reach** (2026-10-21, owner: brighter, more saturated, not mixed with the
   generators): its own "Transit reach" subsection in Layers, a saturated magenta ordinal
   ramp (≤15 / 30 / 45 / 60 min, nearest strongest; validated light and dark) at 0.75

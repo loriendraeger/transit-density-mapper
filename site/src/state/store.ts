@@ -169,7 +169,7 @@ export const selected = createRoot(() =>
 
 /** Which trip generators the hex layer shows (one hex piece each when several). */
 export const [densities, setDensities] = createSignal<Generator[]>(['pop'])
-export const [densityOpacity, setDensityOpacity] = createSignal(0.45)
+export const [densityOpacity, setDensityOpacity] = createSignal(0.35)
 export const [showPois, setShowPois] = createSignal(false)
 export const [showSpiderweb, setShowSpiderweb] = createSignal(true)
 /** The selected stop's transit isochrone (hexes by travel time by transit). */
